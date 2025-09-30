@@ -1,0 +1,34 @@
+# Core FastAPI
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+
+# LangChain ecosystem (compatible versions)
+langchain-core==0.2.43
+langchain==0.2.17
+langchain-openai==0.1.25
+langchain-community==0.2.17
+langgraph==0.2.27
+
+# Voice services
+livekit==1.0.12
+livekit-api==0.7.0
+deepgram-sdk==3.7.0
+elevenlabs==1.8.0
+
+# Memory & Vector DB
+mem0ai==0.1.17
+qdrant-client==1.10.0
+
+# Databases
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+redis==5.0.8
+
+# Config & validation
+pydantic==2.9.0
+pydantic-settings==2.5.2
+python-dotenv==1.0.1
+
+# Async HTTP
+aiohttp==3.10.5

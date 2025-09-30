@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Kurzgesagt-inspired Light Theme */
+    --background: 0 0% 100%;
+    --foreground: 219 71% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 219 71% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 219 71% 14%;
+    --primary: 271 64% 47%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 174 100% 42%;
+    --secondary-foreground: 219 71% 14%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 45 100% 62%;
+    --accent-foreground: 219 71% 14%;
+    --destructive: 0 85% 71%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 271 64% 47%;
+    --radius: 1rem;
+  }
+
+  .dark {
+    /* Kurzgesagt-inspired Dark Theme */
+    --background: 219 71% 14%;
+    --foreground: 0 0% 100%;
+    --card: 219 62% 19%;
+    --card-foreground: 0 0% 100%;
+    --popover: 219 62% 19%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 271 64% 47%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 174 100% 42%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 219 62% 19%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 45 100% 62%;
+    --accent-foreground: 219 71% 14%;
+    --destructive: 0 85% 71%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 219 47% 24%;
+    --input: 219 47% 24%;
+    --ring: 271 64% 47%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom utilities for Kurzgesagt style */
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer utilities {
+  /* Gradient backgrounds */
+  .gradient-kurzgesagt {
+    background: linear-gradient(135deg, #00BFA5 0%, #4C63D2 100%);
+  }
+
+  .gradient-kurzgesagt-reverse {
+    background: linear-gradient(135deg, #4C63D2 0%, #00BFA5 100%);
+  }
+
+  .gradient-purple-aqua {
+    background: linear-gradient(135deg, #7928CA 0%, #00D9C0 100%);
+  }
+
+  /* Glassmorphism */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .glass-card-dark {
+    background: rgba(11, 30, 61, 0.4);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
