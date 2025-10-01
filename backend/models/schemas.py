@@ -39,6 +39,7 @@ class SessionResponse(BaseModel):
     user_id: str
     status: SessionStatus
     room_name: Optional[str] = None
+    access_token: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

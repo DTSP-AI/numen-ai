@@ -56,7 +56,7 @@ export function IntakeForm({ onComplete }: IntakeFormProps) {
       onComplete(contract.id, session.id)
     } catch (error) {
       console.error("Failed to create session:", error)
-      alert("Failed to start session. Please try again.")
+      alert("We're currently preparing your personalized experience. Please check back in a moment, or contact support if this continues.")
     } finally {
       setIsSubmitting(false)
     }
@@ -254,10 +254,10 @@ export function IntakeForm({ onComplete }: IntakeFormProps) {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                Starting Your Session...
+                Preparing Your Journey...
               </span>
             ) : (
-              "Begin Therapy Session"
+              "Start My Transformation"
             )}
           </Button>
         </motion.div>

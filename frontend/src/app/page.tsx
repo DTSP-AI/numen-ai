@@ -50,7 +50,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <motion.div
-            className="text-center mb-16 lg:mb-20"
+            className="text-center mb-8 lg:mb-20"
             initial={{ opacity: 0, y: -30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
@@ -59,7 +59,7 @@ export default function Home() {
               Numen AI
             </h1>
             <p className="text-xl lg:text-2xl text-white/90 max-w-2xl mx-auto leading-relaxed text-balance">
-              Personalized AI Hypnotherapy for Manifestation & Transformation
+              Personalized AI-Powered Manifestation & Transformation
             </p>
           </motion.div>
 
@@ -160,8 +160,8 @@ export default function Home() {
             </h2>
             <p className="text-xl lg:text-2xl text-white/90 leading-relaxed max-w-3xl">
               Our mission is to unlock the Divine Spark of Becoming. We blend the Law of Attraction,
-              Positive Mindset Training, and Quantum Shifting with modern AI therapy. Your Agent listens,
-              learns, and personalizes affirmations, mantras, guided meditations, and hypnotherapy sessions
+              Positive Mindset Training, and Quantum Shifting with modern AI. Your Agent listens,
+              learns, and personalizes affirmations, mantras, guided meditations, and hypnosis sessions
               tailored to your unique goals.
             </p>
           </motion.div>
@@ -353,7 +353,7 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-4">Hypnotherapy</h3>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">Guided Hypnosis</h3>
               <p className="text-gray-600 leading-relaxed">
                 Relax deeply and unlock change through suggestion. Access the subconscious mind where true transformation begins and old patterns dissolve.
               </p>
@@ -362,27 +362,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Section 4: Responsible Use & Compliance */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="max-w-5xl mx-auto text-center"
-          >
-            <p className="text-sm text-gray-500 leading-relaxed">
-              <strong>Disclaimer:</strong> Numen AI supports personal growth through affirmations and hypnotherapy.
-              It is not a substitute for licensed medical or psychiatric care. All sessions are confidential,
-              user data is SOC 2 and HIPAA compliant. If you are experiencing a mental health crisis,
-              please contact a healthcare professional or emergency services immediately.
-            </p>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Section 5: Final CTA */}
+      {/* Section 4: Final CTA */}
       <section className="relative py-32 lg:py-40 overflow-hidden bg-gradient-to-br from-kurzgesagt-purple via-kurzgesagt-indigo to-kurzgesagt-navy">
         {/* Floating decorative elements */}
         <motion.div
@@ -458,6 +438,26 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
             </motion.button>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Section 5: Responsible Use & Compliance - At Bottom */}
+      <section className="py-16 bg-gray-50">
+        <div className="container mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="max-w-5xl mx-auto text-center"
+          >
+            <p className="text-sm text-gray-500 leading-relaxed">
+              <strong>Disclaimer:</strong> Numen AI supports personal growth through affirmations and guided hypnosis.
+              It is not a substitute for licensed medical or psychiatric care. All sessions are confidential,
+              user data is SOC 2 and HIPAA compliant. If you are experiencing a mental health crisis,
+              please contact a healthcare professional or emergency services immediately.
+            </p>
           </motion.div>
         </div>
       </section>

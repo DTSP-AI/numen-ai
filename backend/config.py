@@ -4,34 +4,40 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # OpenAI / LLM
-    openai_api_key: str
+    openai_api_key: Optional[str] = None
 
     # LiveKit
-    livekit_api_key: str
-    livekit_api_secret: str
-    livekit_url: str
+    livekit_api_key: Optional[str] = None
+    livekit_api_secret: Optional[str] = None
+    livekit_url: Optional[str] = None
 
     # Deepgram
-    deepgram_api_key: str
+    deepgram_api_key: Optional[str] = None
 
     # ElevenLabs
-    elevenlabs_api_key: str
+    elevenlabs_api_key: Optional[str] = None
 
-    # Database
+    # Database - Supabase connection string (takes precedence)
+    supabase_db_url: Optional[str] = None
+    supabase_url: Optional[str] = None
+    supabase_key: Optional[str] = None
+
+    # OR local PostgreSQL (fallback only)
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_user: str = "hypnoagent"
-    postgres_password: str
+    postgres_password: str = ""
     postgres_db: str = "hypnoagent"
 
-    # Redis
-    redis_host: str = "localhost"
-    redis_port: int = 6379
+    # NOTE: Redis and Qdrant no longer needed!
+    # - Redis → Replaced by PostgreSQL sessions table
+    # - Qdrant → Replaced by Supabase pgvector
+    # Kept for backward compatibility only
+    redis_host: Optional[str] = None
+    redis_port: Optional[int] = None
     redis_password: Optional[str] = None
-
-    # Qdrant
-    qdrant_host: str = "localhost"
-    qdrant_port: int = 6333
+    qdrant_host: Optional[str] = None
+    qdrant_port: Optional[int] = None
     qdrant_api_key: Optional[str] = None
 
     # App Settings
@@ -40,8 +46,10 @@ class Settings(BaseSettings):
     session_ttl_seconds: int = 3600
 
     class Config:
-        env_file = ".env"
+        env_file = "../.env"
+        env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "ignore"
 
 
 settings = Settings()
