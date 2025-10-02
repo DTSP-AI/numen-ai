@@ -7,13 +7,14 @@ Part of the Dashboard Agent system.
 
 from fastapi import APIRouter, HTTPException, Header, Query
 from typing import Optional, List
-from pydantic import BaseModel
-from datetime import time
+from pydantic import BaseModel, Field
+from datetime import time, datetime
 import logging
 
 from database import get_pg_pool
 from services.audio_synthesis import audio_service
 from models.agent import VoiceConfiguration
+from agents.manifestation_protocol_agent import ManifestationProtocolAgent
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -52,6 +53,153 @@ class HypnosisScriptResponse(BaseModel):
 # ============================================================================
 # AFFIRMATIONS ENDPOINTS
 # ============================================================================
+
+class GenerateAffirmationsRequest(BaseModel):
+    """Request to generate affirmations using an agent"""
+    user_id: str
+    agent_id: str
+    session_id: Optional[str] = None
+    count: int = Field(default=10, ge=3, le=20)
+
+
+@router.post("/affirmations/generate")
+async def generate_affirmations(request: GenerateAffirmationsRequest):
+    """
+    Generate personalized affirmations using an agent's ManifestationProtocolAgent
+
+    This endpoint:
+    1. Loads the agent contract
+    2. Retrieves user goals from session metadata
+    3. Uses ManifestationProtocolAgent to generate AI-powered affirmations
+    4. Stores affirmations in database with schedules
+    5. Returns generated affirmations
+    """
+    pool = get_pg_pool()
+
+    try:
+        # Get agent contract and session data
+        async with pool.acquire() as conn:
+            agent_row = await conn.fetchrow("""
+                SELECT id, name, contract
+                FROM agents
+                WHERE id = $1::uuid
+            """, request.agent_id)
+
+            if not agent_row:
+                raise HTTPException(status_code=404, detail="Agent not found")
+
+            agent_contract = agent_row["contract"]
+            agent_name = agent_row["name"]
+
+            # Get session metadata which contains intake data
+            goals = []
+            commitment_level = "moderate"
+            timeframe = "30_days"
+
+            if request.session_id:
+                session_row = await conn.fetchrow("""
+                    SELECT session_data
+                    FROM sessions
+                    WHERE id = $1::uuid
+                """, request.session_id)
+
+                if session_row and session_row["session_data"]:
+                    session_data = session_row["session_data"]
+                    intake_data = session_data.get("metadata", {}).get("intake_data", {})
+                    goals = intake_data.get("goals", [])
+
+                    # Map session type to commitment level and timeframe
+                    session_type = intake_data.get("session_type", "manifestation")
+                    if session_type in ["intensive", "habit_change"]:
+                        commitment_level = "intensive"
+                        timeframe = "90_days"
+                    elif session_type in ["anxiety_relief", "sleep_hypnosis"]:
+                        commitment_level = "light"
+                        timeframe = "7_days"
+
+            # Combine goals into single manifestation goal
+            primary_goal = goals[0] if goals else "personal transformation and growth"
+
+            # Use ManifestationProtocolAgent to generate complete protocol
+            logger.info(f"Generating manifestation protocol for goal: {primary_goal}")
+            protocol_agent = ManifestationProtocolAgent()
+            protocol = await protocol_agent.generate_protocol(
+                user_id=request.user_id,
+                goal=primary_goal,
+                timeframe=timeframe,
+                commitment_level=commitment_level
+            )
+
+            # Extract affirmations from protocol
+            affirmations_data = protocol.get("affirmations", {})
+            all_affirmations = affirmations_data.get("all", [])
+            daily_rotation = affirmations_data.get("daily_rotation", {})
+
+            # Store affirmations in database with schedule
+            generated_affirmations = []
+
+            for idx, affirmation_text in enumerate(all_affirmations[:request.count]):
+                # Determine category based on content
+                category = "identity" if "I am" in affirmation_text else \
+                          "gratitude" if "grateful" in affirmation_text.lower() else \
+                          "action"
+
+                # Determine schedule - rotate through days
+                days = list(daily_rotation.keys())
+                day_idx = idx % len(days) if days else 0
+                schedule_day = days[day_idx] if days else None
+
+                # Insert affirmation
+                aff_id = await conn.fetchval("""
+                    INSERT INTO affirmations (
+                        user_id, agent_id, affirmation_text,
+                        category, status, schedule_type, schedule_time
+                    )
+                    VALUES ($1::uuid, $2::uuid, $3, $4, 'active', $5, $6::time)
+                    RETURNING id
+                """, request.user_id, request.agent_id, affirmation_text, category,
+                "daily" if schedule_day else None,
+                "08:00:00" if schedule_day else None)  # Default morning time
+
+                generated_affirmations.append({
+                    "id": str(aff_id),
+                    "affirmation_text": affirmation_text,
+                    "category": category,
+                    "audio_url": None,
+                    "play_count": 0,
+                    "is_favorite": False,
+                    "schedule_day": schedule_day,
+                    "created_at": datetime.utcnow().isoformat()
+                })
+
+            # Store full protocol in session metadata for future reference
+            await conn.execute("""
+                UPDATE sessions
+                SET session_data = session_data || $1::jsonb
+                WHERE id = $2::uuid
+            """, {"manifestation_protocol": protocol}, request.session_id)
+
+            logger.info(f"Generated {len(generated_affirmations)} AI-powered affirmations for user {request.user_id} using agent {agent_name}")
+
+            return {
+                "status": "success",
+                "agent_name": agent_name,
+                "count": len(generated_affirmations),
+                "affirmations": generated_affirmations,
+                "protocol_summary": {
+                    "daily_practices": len(protocol.get("daily_practices", [])),
+                    "visualizations": len(protocol.get("visualizations", [])),
+                    "success_metrics": len(protocol.get("success_metrics", [])),
+                    "checkpoints": len(protocol.get("checkpoints", []))
+                }
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate affirmations: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate affirmations: {str(e)}")
+
 
 @router.get("/affirmations/user/{user_id}")
 async def get_user_affirmations(

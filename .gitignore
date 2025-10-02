@@ -26,9 +26,16 @@ yarn-error.log*
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
+
+# Private Notes (keep internal)
+**/PRIVATE_*.md
+**/notes/
+**/internal/
+.notes/
 
 # OS
 .DS_Store

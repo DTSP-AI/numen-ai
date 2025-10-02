@@ -56,8 +56,33 @@
     @apply border-border;
   }
 
+  html,
+  body {
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
+    width: 100vw;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  #__next {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Allow text selection in specific areas */
+  input,
+  textarea,
+  [contenteditable="true"] {
+    user-select: text;
+    -webkit-user-select: text;
   }
 
   /* Smooth scrolling */

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,14 +11,21 @@ import { api } from "@/lib/api"
 import type { TonePreference, SessionType } from "@/types"
 
 interface IntakeFormProps {
-  onComplete: (contractId: string, sessionId: string) => void
+  onComplete?: (contractId: string, sessionId: string) => void
 }
 
 export function IntakeForm({ onComplete }: IntakeFormProps) {
+  const router = useRouter()
   const [goals, setGoals] = useState<string[]>([""])
   const [tone, setTone] = useState<TonePreference>("calm")
   const [sessionType, setSessionType] = useState<SessionType>("manifestation")
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Generate a stable demo user ID (in production, this would come from auth)
+  const [demoUserId] = useState(() => {
+    // Use a consistent UUID for demo purposes
+    return "00000000-0000-0000-0000-000000000001"
+  })
 
   const addGoal = () => {
     if (goals.length < 5) {
@@ -40,22 +48,21 @@ export function IntakeForm({ onComplete }: IntakeFormProps) {
     setIsSubmitting(true)
 
     try {
-      // Create session
-      const session = await api.createSession("user-demo-001")
-
-      // Create contract
-      const contract = await api.createContract({
-        session_id: session.id,
-        user_id: "user-demo-001",
+      // Just collect intake data and pass to agent builder
+      // The Agent will create the session, NOT the intake
+      const intakeData = {
         goals: goals.filter(g => g.trim() !== ""),
         tone,
-        voice_id: tone,
         session_type: sessionType
-      })
+      }
 
-      onComplete(contract.id, session.id)
+      // Store intake data in localStorage for agent builder
+      localStorage.setItem('intakeData', JSON.stringify(intakeData))
+
+      // Navigate to agent builder
+      router.push(`/create-agent?userId=${demoUserId}`)
     } catch (error) {
-      console.error("Failed to create session:", error)
+      console.error("Failed to process intake:", error)
       alert("We're currently preparing your personalized experience. Please check back in a moment, or contact support if this continues.")
     } finally {
       setIsSubmitting(false)

@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Space_Grotesk, Inter } from "next/font/google"
 import "./globals.css"
+import { Navigation } from "@/components/Navigation"
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -14,8 +15,8 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "HypnoAgent - Personalized Hypnotherapy",
-  description: "AI-powered manifestation and hypnotherapy voice agent",
+  title: "Numen AI - Personalized Manifestation & Transformation",
+  description: "AI-powered manifestation and hypnotherapy for your transformation journey",
 }
 
 export default function RootLayout({
@@ -25,7 +26,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable}`}>
-      <body className={inter.className}>{children}</body>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+      </head>
+      <body className={inter.className}>
+        <Navigation />
+        {children}
+      </body>
     </html>
   )
 }

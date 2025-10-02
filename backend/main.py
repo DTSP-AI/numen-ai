@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import logging
 
 from config import settings
-from routers import sessions, contracts, therapy, protocols, agents, affirmations, dashboard
+from routers import sessions, contracts, therapy, protocols, agents, affirmations, dashboard, voices
 from database import init_db, close_db
 from services.memory import MemoryService
 
@@ -69,6 +69,7 @@ async def health_check():
 
 # Include routers
 app.include_router(agents.router, prefix="/api", tags=["agents"])
+app.include_router(voices.router, prefix="/api", tags=["voices"])
 app.include_router(affirmations.router, prefix="/api", tags=["affirmations"])
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])

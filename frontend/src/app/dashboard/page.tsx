@@ -1,11 +1,31 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
+import { Button } from "@/components/ui/button"
 import { AffirmationCard } from "@/components/AffirmationCard"
 import { ScriptPlayer } from "@/components/ScriptPlayer"
 import { ScheduleCalendar } from "@/components/ScheduleCalendar"
 import { AgentCard } from "@/components/AgentCard"
+import { HorizontalTabs } from "@/components/HorizontalTabs"
+import { DashboardStatCard } from "@/components/DashboardStatCard"
+
+interface Agent {
+  id: string
+  name: string
+  [key: string]: unknown
+}
+
+interface ScheduleItem {
+  id: string
+  [key: string]: unknown
+}
+
+interface Thread {
+  id: string
+  [key: string]: unknown
+}
 
 interface DashboardData {
   summary: {
@@ -14,10 +34,10 @@ interface DashboardData {
     total_scripts: number
     upcoming_sessions: number
   }
-  agents: any[]
+  agents: Agent[]
   affirmations_by_category: Record<string, { total: number; with_audio: number }>
-  schedule: any[]
-  recent_threads: any[]
+  schedule: ScheduleItem[]
+  recent_threads: Thread[]
 }
 
 interface Affirmation {
@@ -42,14 +62,20 @@ interface HypnosisScript {
 }
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams()
+  const agentId = searchParams.get("agentId")
+  const sessionId = searchParams.get("sessionId")
+  const success = searchParams.get("success") === "true"
+
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [affirmations, setAffirmations] = useState<Affirmation[]>([])
   const [scripts, setScripts] = useState<HypnosisScript[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<"overview" | "affirmations" | "scripts" | "schedule">("overview")
+  const [showMeetAgent, setShowMeetAgent] = useState(success)  // Phase 4: Show intro on first visit
 
-  // Mock user ID (in production, get from auth context)
-  const userId = "test-user-123"
+  // Demo user ID (in production, get from auth context)
+  const userId = "00000000-0000-0000-0000-000000000001"
 
   useEffect(() => {
     loadDashboard()
@@ -93,9 +119,85 @@ export default function DashboardPage() {
     )
   }
 
+  // Phase 4: Meet Your Agent intro screen
+  if (showMeetAgent && agentId && dashboardData?.agents?.length > 0) {
+    const agent = dashboardData.agents.find(a => a.id === agentId) || dashboardData.agents[0]
+
+    return (
+      <div className="min-h-screen gradient-kurzgesagt p-6 flex items-center justify-center">
+        <div className="max-w-3xl w-full">
+          {/* Success Banner */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center mb-8"
+          >
+            <div className="text-6xl mb-4">✨</div>
+            <h1 className="text-5xl font-bold text-white mb-3">Agent Created!</h1>
+            <p className="text-xl text-white/80">Your personalized guide is ready</p>
+          </motion.div>
+
+          {/* Meet Your Agent Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="glass-card p-8 rounded-3xl"
+          >
+            <h2 className="text-3xl font-bold text-white mb-6">Meet {agent.name}</h2>
+
+            {/* Capabilities */}
+            <div className="bg-white/10 rounded-2xl p-6 mb-8">
+              <h3 className="text-xl font-semibold text-white mb-4">What I Can Help You With:</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3 text-white/90">
+                  <svg className="w-6 h-6 text-kurzgesagt-yellow flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Create personalized affirmations aligned with your goals</span>
+                </li>
+                <li className="flex items-start gap-3 text-white/90">
+                  <svg className="w-6 h-6 text-kurzgesagt-yellow flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Guide you through manifestation practices</span>
+                </li>
+                <li className="flex items-start gap-3 text-white/90">
+                  <svg className="w-6 h-6 text-kurzgesagt-yellow flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Track your transformation journey</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* CTA Button */}
+            <Button
+              onClick={() => {
+                // TODO: Phase 5 - Discovery questions
+                alert("Discovery Questions coming in Phase 5!")
+              }}
+              className="w-full bg-gradient-to-r from-kurzgesagt-purple to-kurzgesagt-coral text-white text-xl py-6 rounded-xl shadow-lg hover:shadow-2xl transition-all font-semibold"
+            >
+              Generate My Plan
+            </Button>
+
+            {/* Skip link */}
+            <button
+              onClick={() => setShowMeetAgent(false)}
+              className="w-full mt-4 text-white/60 hover:text-white transition-colors"
+            >
+              Skip to Dashboard →
+            </button>
+          </motion.div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen gradient-kurzgesagt">
-      <div className="container mx-auto px-6 py-12">
+      <div className="container mx-auto px-6 py-16">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -107,57 +209,56 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Stats Cards */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12"
-        >
-          <div className="glass-card p-6 rounded-2xl">
-            <div className="text-kurzgesagt-yellow text-3xl font-bold mb-2">
-              {dashboardData?.summary?.total_agents || 0}
-            </div>
-            <div className="text-white/80">Active Agents</div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+          <div onClick={() => setActiveTab("overview")}>
+            <DashboardStatCard
+              label="Active Agents"
+              value={dashboardData?.summary?.total_agents || 0}
+              color="#FFD33D"
+              delay={0.1}
+            />
           </div>
 
-          <div className="glass-card p-6 rounded-2xl">
-            <div className="text-kurzgesagt-aqua text-3xl font-bold mb-2">
-              {dashboardData?.summary?.total_affirmations || 0}
-            </div>
-            <div className="text-white/80">Affirmations</div>
+          <div onClick={() => setActiveTab("affirmations")}>
+            <DashboardStatCard
+              label="Affirmations"
+              value={dashboardData?.summary?.total_affirmations || 0}
+              color="#00D9C0"
+              delay={0.15}
+            />
           </div>
 
-          <div className="glass-card p-6 rounded-2xl">
-            <div className="text-kurzgesagt-purple text-3xl font-bold mb-2">
-              {dashboardData?.summary?.total_scripts || 0}
-            </div>
-            <div className="text-white/80">Hypnosis Scripts</div>
+          <div onClick={() => setActiveTab("scripts")}>
+            <DashboardStatCard
+              label="Hypnosis Scripts"
+              value={dashboardData?.summary?.total_scripts || 0}
+              color="#7C3AED"
+              delay={0.2}
+            />
           </div>
 
-          <div className="glass-card p-6 rounded-2xl">
-            <div className="text-kurzgesagt-coral text-3xl font-bold mb-2">
-              {dashboardData?.summary?.upcoming_sessions || 0}
-            </div>
-            <div className="text-white/80">Upcoming Sessions</div>
+          <div onClick={() => setActiveTab("schedule")}>
+            <DashboardStatCard
+              label="Upcoming Sessions"
+              value={dashboardData?.summary?.upcoming_sessions || 0}
+              color="#FF6B6B"
+              delay={0.25}
+            />
           </div>
-        </motion.div>
+        </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-4 mb-8">
-          {["overview", "affirmations", "scripts", "schedule"].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as any)}
-              className={`px-6 py-3 rounded-xl font-semibold transition-all ${
-                activeTab === tab
-                  ? "bg-white text-kurzgesagt-purple shadow-lg"
-                  : "glass-card text-white hover:bg-white/20"
-              }`}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
-        </div>
+        <HorizontalTabs
+          tabs={[
+            { id: "overview", label: "Overview" },
+            { id: "affirmations", label: "Affirmations" },
+            { id: "scripts", label: "Scripts" },
+            { id: "schedule", label: "Schedule" },
+          ]}
+          activeTab={activeTab}
+          onTabChange={(tabId) => setActiveTab(tabId as "overview" | "affirmations" | "scripts" | "schedule")}
+          className="mb-8"
+        />
 
         {/* Tab Content */}
         <motion.div

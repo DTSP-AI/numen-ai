@@ -15,18 +15,31 @@ livekit_service = LiveKitService()
 @router.post("/", response_model=SessionResponse)
 async def create_session(session: SessionCreate):
     """Create a new therapy session with LiveKit room"""
+    logger.info(f"RAW BODY: {session.model_dump()}")
+
     pool = get_pg_pool()
 
     session_id = uuid4()
     room_name = f"session-{session_id}"
     now = datetime.utcnow()
 
+    # Create LiveKit room (optional - graceful degradation)
+    user_token = None
     try:
-        # Create LiveKit room
         room_info = await livekit_service.create_room(room_name)
         logger.info(f"Created LiveKit room: {room_name}")
 
-        # Create session in database
+        # Generate access token for user
+        user_token = await livekit_service.generate_token(
+            room_name=room_name,
+            participant_name=f"user-{session.user_id}",
+            is_agent=False
+        )
+    except Exception as lk_error:
+        logger.warning(f"LiveKit unavailable, continuing without real-time voice: {lk_error}")
+
+    # Create session in database
+    try:
         async with pool.acquire() as conn:
             await conn.execute(
                 """
@@ -43,13 +56,6 @@ async def create_session(session: SessionCreate):
 
         logger.info(f"Created session {session_id} for user {session.user_id}")
 
-        # Generate access token for user
-        user_token = await livekit_service.generate_token(
-            room_name=room_name,
-            participant_name=f"user-{session.user_id}",
-            is_agent=False
-        )
-
         return SessionResponse(
             id=session_id,
             user_id=session.user_id,
@@ -61,8 +67,8 @@ async def create_session(session: SessionCreate):
         )
 
     except Exception as e:
-        logger.error(f"Failed to create session: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create session")
+        logger.error(f"Failed to create session in database: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
 
 
 @router.get("/{session_id}", response_model=SessionResponse)

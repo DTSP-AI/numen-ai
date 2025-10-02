@@ -62,13 +62,13 @@ class AgentTraits(BaseModel):
         ge=0, le=100, default=70,
         description="Certainty and authority in responses"
     )
-    technicality: int = Field(
-        ge=0, le=100, default=50,
-        description="Technical vs accessible language"
+    spirituality: int = Field(
+        ge=0, le=100, default=60,
+        description="Spiritual awareness and connection"
     )
-    safety: int = Field(
+    supportiveness: int = Field(
         ge=0, le=100, default=80,
-        description="Risk aversion and caution level"
+        description="Nurturing and encouraging presence"
     )
 
     class Config:
@@ -81,8 +81,8 @@ class AgentTraits(BaseModel):
                 "formality": 30,
                 "verbosity": 65,
                 "confidence": 80,
-                "technicality": 50,
-                "safety": 85
+                "spirituality": 70,
+                "supportiveness": 90
             }
         }
 

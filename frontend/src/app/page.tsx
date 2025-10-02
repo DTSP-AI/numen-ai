@@ -1,11 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { IntakeForm } from "@/components/IntakeForm"
 import { TherapySession } from "@/components/TherapySession"
 
 export default function Home() {
+  const router = useRouter()
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [contractId, setContractId] = useState<string | null>(null)
   const [stage, setStage] = useState<"intake" | "therapy">("intake")
@@ -46,7 +48,7 @@ export default function Home() {
         />
       </div>
 
-      <div className="container mx-auto px-6 py-12 lg:py-20 relative z-10">
+      <div className="container mx-auto px-6 py-16 lg:py-24 relative z-10">
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <motion.div
@@ -269,8 +271,7 @@ export default function Home() {
               {/* CTA Button */}
               <motion.button
                 onClick={() => {
-                  const intakeSection = document.querySelector('main > div')
-                  intakeSection?.scrollIntoView({ behavior: 'smooth' })
+                  router.push('/create-agent?userId=00000000-0000-0000-0000-000000000001')
                 }}
                 className="px-8 py-4 bg-gradient-to-r from-kurzgesagt-purple to-kurzgesagt-coral text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300"
                 whileHover={{ scale: 1.05 }}
@@ -423,8 +424,7 @@ export default function Home() {
 
             <motion.button
               onClick={() => {
-                const intakeSection = document.querySelector('main > div')
-                intakeSection?.scrollIntoView({ behavior: 'smooth' })
+                router.push('/create-agent?userId=00000000-0000-0000-0000-000000000001')
               }}
               className="px-12 py-5 bg-gradient-to-r from-kurzgesagt-purple to-kurzgesagt-coral text-white text-xl font-bold rounded-xl shadow-2xl hover:shadow-kurzgesagt-purple/50 hover:scale-110 transition-all duration-300 inline-flex items-center gap-3"
               whileHover={{

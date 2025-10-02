@@ -102,7 +102,7 @@ export function AffirmationCard({ affirmation, onUpdate }: Props) {
       {/* Affirmation Text */}
       <div className="mt-8 mb-6">
         <p className="text-white text-lg leading-relaxed">
-          "{affirmation.affirmation_text}"
+          &ldquo;{affirmation.affirmation_text}&rdquo;
         </p>
       </div>
 

@@ -18,7 +18,7 @@ interface Transcript {
   timestamp: string
 }
 
-export function TherapySession({ sessionId, contractId, onBack }: TherapySessionProps) {
+export function TherapySession({ sessionId, onBack }: TherapySessionProps) {
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
   const [isActive, setIsActive] = useState(false)
   const [ws, setWs] = useState<WebSocket | null>(null)
