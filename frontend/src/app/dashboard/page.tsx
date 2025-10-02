@@ -10,6 +10,7 @@ import { ScheduleCalendar } from "@/components/ScheduleCalendar"
 import { AgentCard } from "@/components/AgentCard"
 import { HorizontalTabs } from "@/components/HorizontalTabs"
 import { DashboardStatCard } from "@/components/DashboardStatCard"
+import { DiscoveryQuestions } from "@/components/DiscoveryQuestions"
 
 interface Agent {
   id: string
@@ -73,6 +74,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<"overview" | "affirmations" | "scripts" | "schedule">("overview")
   const [showMeetAgent, setShowMeetAgent] = useState(success)  // Phase 4: Show intro on first visit
+  const [showDiscovery, setShowDiscovery] = useState(false)  // Phase 2: Discovery questions
 
   // Demo user ID (in production, get from auth context)
   const userId = "00000000-0000-0000-0000-000000000001"
@@ -105,6 +107,24 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDiscoveryComplete = () => {
+    setShowDiscovery(false)
+    setShowMeetAgent(false)
+    loadDashboard() // Reload to show generated affirmations
+  }
+
+  // Show discovery questions flow
+  if (showDiscovery && agentId && sessionId) {
+    return (
+      <DiscoveryQuestions
+        agentId={agentId}
+        sessionId={sessionId}
+        userId={userId}
+        onComplete={handleDiscoveryComplete}
+      />
+    )
   }
 
   if (loading || !dashboardData) {
@@ -173,10 +193,7 @@ export default function DashboardPage() {
 
             {/* CTA Button */}
             <Button
-              onClick={() => {
-                // TODO: Phase 5 - Discovery questions
-                alert("Discovery Questions coming in Phase 5!")
-              }}
+              onClick={() => setShowDiscovery(true)}
               className="w-full bg-gradient-to-r from-kurzgesagt-purple to-kurzgesagt-coral text-white text-xl py-6 rounded-xl shadow-lg hover:shadow-2xl transition-all font-semibold"
             >
               Generate My Plan

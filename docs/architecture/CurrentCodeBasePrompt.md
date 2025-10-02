@@ -1,276 +1,190 @@
-# Claude Code Prompt Chain – Critical Path UX (Numen AI)
+Numen AI Roadmap to Production
 
-> Purpose: Implement the polished end‑to‑end user journey **without breaking** the codebase. Every phase is copy‑pasteable for Claude Code in Cursor and includes strict guardrails, file scopes, and acceptance criteria. Adjust paths for your repo layout (`frontend/src/...` or `apps/web/src/...`).
+Phase 1: Intake & Agent Initialization – Scope: Frontend intake form and agent creation UI; backend /api/agents and /api/sessions endpoints. The existing IntakeForm collects goals, tone, and session type and then navigates to an agent-creation step
+GitHub
+. We must build an AgentBuilder component with fields (agent name, archetype, style, session type) and a voice picker (loading voices via GET /api/voices and preview via POST /api/voices/preview
+GitHub
+). Upon submit, the client should call the backend to create an Agent contract (POST /api/agents) and then create a Session (POST /api/sessions) using the intake data from localStorage
+GitHub
+.
 
----
+Dependencies: Phase 0 (bootstrapping and linting) should be completed first. The IntakeForm must correctly route and store data
+GitHub
+. Backend schemas for agents and sessions exist (see database.py tables for agents and sessions
+GitHub
+GitHub
+).
 
-## Phase 0 — Branch + Guardrails Bootstrap
+Goals: After user submission, a new agent and session appear in the database and the app routes to the Dashboard. On error (e.g. 422), show an inline message.
 
-**Task:** Create branches and enforce guardrails/lint gates.
+Success Criteria: Intake data is saved in localStorage (no direct session call)
+GitHub
+. AgentBuilder form is functional, voices load and preview plays
+GitHub
+. Submitting the builder creates valid agent and session records (e.g. verify agents and sessions tables) and redirects to the dashboard. No unexpected 500 errors occur.
 
-**Scope (files):** `package.json`, `frontend/package.json`, root CI config (later), repo only.
+Phase 2: Dashboard & Plan Generation – Scope: Dashboard UI and plan-generation flow; backend plan-generation services. Once an agent/session exist, show a Meet Your Agent intro (name, archetype, voice, CTA “Generate My Plan”)
+GitHub
+. Then present 2–3 discovery questions (focus area, cadence, time commitment) and call the backend plan-generation endpoint (e.g. reuse /api/affirmations/generate or implement /api/plan/generate)
+GitHub
+. The backend should invoke the AffirmationAgent (the “TherapyAgent”) using LangGraph orchestration to produce a personalized protocol (affirmations, scripts, schedule) which is stored in the session (e.g. in manifestation_protocols and related tables
+GitHub
+).
 
-**Guardrails:**
+Dependencies: Agent creation from Phase 1. Backend agents/orchestration (LangGraph) must be wired so that submitting discovery triggers the AffirmationAgent. Existing memory/pipeline tables (e.g. affirmations, hypnosis_scripts) are in place
+GitHub
+GitHub
+.
 
-* Do **not** modify app logic in this phase.
-* Add/confirm scripts: `lint`, `typecheck`, `build` for frontend; `lint:py`, `test` for backend.
-* Add a PR checklist template.
+Goals: User can answer quick prompts and trigger a plan generation. The service returns a structured plan and stores it in the database (e.g. manifestation_protocols and generated affirmation/script records).
 
-**Prompt:**
+Success Criteria: After generation, the dashboard shows a summary of the plan (counts of practices/affirmations/etc.) and the data is persisted. The pipeline (IntakeAgent → AffirmationAgent → ElevenLabs audio) is exercised end-to-end
+GitHub
+GitHub
+, and the new plan content is visible on the Dashboard or in the data tables.
 
-> Create branches `release/0.2.0-alpha`, `feat/ux-critical-path`, `fix/api-session-contract`. Ensure `npm run lint && npm run typecheck` pass in frontend and `pytest` in backend. If missing, add scripts and minimal config (Prettier/ESLint for TS; Black/Ruff for Py) without changing app logic. Output all changed files.
+Phase 3: Plan Review & Consent – Scope: Plan summary UI and legal disclaimer; backend consent tracking. Build a PlanReview component to display the plan details (bullet summaries with “view details” expanders) and a disclaimer (“This is not medical advice…”). Include buttons like “Accept & Start Session”, “Edit Plan”, “Ask More Questions”
+GitHub
+. On acceptance, PATCH the session record to mark consent (e.g. set consent: true and timestamp).
 
-**Acceptance:**
+Dependencies: Plan generated and stored from Phase 2. Session and consent fields must exist (the sessions table can hold JSON state or add a flag).
 
-* Branches created.
-* Lint/typecheck/test commands exist and run.
+Goals: Ensure the user explicitly agrees to proceed. The UI clearly shows plan highlights and disclaimer.
 
----
+Success Criteria: Clicking “Accept” updates the session (e.g. see sessions table or API) with consent captured. Navigation flows (to start session or edit plan) work correctly. The disclaimer and consent log meet compliance guidelines
+GitHub
+.
 
-## Phase 1 — Intake Form aligns with pipeline (no session POST)
+Phase 4: Live Therapy Session (LangGraph + Voice) – Scope: Real-time therapy UI and voice pipeline integration. Create a TherapySession component that connects to the backend WebSocket /api/therapy/session/{session_id}. The backend should orchestrate LiveKit/Deepgram/STT and the TherapyAgent (via LangGraph) to handle the voice conversation: user audio → STT → agent response → ElevenLabs TTS → streamed audio
+GitHub
+.
 
-**Task:** Ensure IntakeForm saves data and routes to AgentBuilder only.
+Dependencies: LangGraph orchestration defined (IntakeAgent and AffirmationAgent contracts) and the ElevenLabs TTS service configured. The LiveKit credentials must be set up and tested (the database setup mentions room creation)
+GitHub
+GitHub
+.
 
-**Scope (files):** `IntakeForm.tsx` (find under `frontend/src/components/` or `apps/web/src/components/`).
+Goals: Enable a live session where the user speaks and hears an AI-generated response. Stream audio latency < 300ms if possible. Store transcripts.
 
-**Guardrails:**
+Success Criteria: Voice conversation works end-to-end. The user’s speech is transcribed, processed by the agent, and an audio reply is played back (real-time). Transcripts appear in transcripts table
+GitHub
+. No errors in WebSocket connection. This completes the dual-agent workflow described in architecture
+GitHub
+GitHub
+.
 
-* Do **not** call `/api/sessions` here.
-* Store `{ goals[], tone, session_type }` in `localStorage.intakeData`.
-* Route to `/create-agent` with a demo `userId` if needed.
+Phase 5: Calendar & Scheduling Integration – Scope: External calendar linkage and in-app scheduling. Implement logic to sync scheduled sessions with Google Calendar and/or Outlook. Use the scheduled_sessions table (already defined in DB
+GitHub
+) as the source of truth. Build backend services to authenticate to Google/Outlook APIs and push new session events (e.g. by polling or on-demand when a user schedules a session). Optionally add UI for users to authorize their calendar account.
 
-**Prompt:**
+Dependencies: scheduled_sessions infrastructure in place
+GitHub
+. OAuth client IDs/secrets for Google and Microsoft. User accounts (tenant/user model in DB) ready to link.
 
-> Edit only `IntakeForm.tsx`. On submit: validate fields, `localStorage.setItem('intakeData', JSON.stringify({goals, tone, session_type}))`, then `router.push('/create-agent')`. Add minimal error UI (inline text) — no new deps. Do not create a session here.
+Goals: Let users schedule therapy or affirmation sessions and see them in their personal calendars. Support recurring rules and time zones.
 
-**Acceptance:**
+Success Criteria: Created sessions appear as events in linked Google/Outlook calendars (with correct date/time). Recurring scheduling (if implemented) works. Unlinking or canceling a session updates the calendar. Ensure no scheduling conflicts. Logging should capture calendar syncs for compliance.
 
-* Submitting intake navigates to `/create-agent` without 500s.
-* `localStorage.intakeData` contains the form JSON.
+Phase 6: API Cleanup & Endpoint Polishing – Scope: Review and refine all backend API routes. Clean up unused or duplicate endpoints, ensure RESTful consistency, and add missing endpoints for new features (e.g. plan generation, calendar management). Update routers for agents, sessions, contracts, therapy, affirmations, dashboard, voices, etc., matching the design.
 
----
+Dependencies: All new features from prior phases must have corresponding API support. The README lists basic endpoints (sessions, contracts, therapy)
+GitHub
+, but these need extending.
 
-## Phase 2 — AgentBuilder simplified + ElevenLabs voice selection
+Goals: Remove any hard-coded logic; use Pydantic models and standard HTTP status codes. Ensure Swagger docs (FastAPI) accurately reflect each endpoint. Add pagination or filters if needed.
 
-**Task:** Minimal fields + voice picker with preview.
+Success Criteria: No orphan routes remain. Each endpoint has proper input/output schemas and error handling. Automated tests (if any) pass. API documentation is updated (the /docs UI and any README docs reflect current behavior).
 
-**Scope (files):** `AgentBuilder.tsx`; optional new UI components in `components/`.
+Phase 7: UX/UI Polish & Accessibility – Scope: Visual and interactive refinements across the app. Implement features like horizontal tab scrolling (e.g. for multi-step forms or plan details if content overflows). Ensure voice selection UI has audio preview controls. Fine-tune “next-step” CTAs (e.g. after consent, show buttons “Start Session”, “View Schedule”, etc.
+GitHub
+). Review all components for responsive design and keyboard navigation.
 
-**Guardrails:**
+Dependencies: Core functionality complete; design system (Tailwind, shadcn/ui) in place.
 
-* Single manual text field: **Agent Name**.
-* Dropdowns: **Archetype**, **Style**, **Session Type**.
-* **Voice Picker**: Fetch voices from backend `GET /api/voices`; preview via `POST /api/voices/preview` returning audio/mpeg.
-* No extra sliders/knobs.
+Goals: The app should look and feel polished. Animation, spacing (e.g. top padding increased for headers
+GitHub
+), and accessibility (ARIA labels, focus states) must be verified. Voice previews in the AgentBuilder should play without lag.
 
-**Prompt:**
+Success Criteria: UI compiles without errors and matches design specifications. Horizontal scroll areas behave smoothly on desktop and mobile. All interactive elements are accessible (e.g. hamburger menu and tabs are keyboard-operable
+GitHub
+). No visual glitches remain.
 
-> Edit only `AgentBuilder.tsx` (+ a small `VoicePicker.tsx` if needed). Build a form with: Name (text), Archetype (dropdown: Stoic, Spiritual Guide, Motivator, Therapist), Style (dropdown: Empathetic, Tough Love, Neutral), Session Type (from intake or dropdown), Voice (list from `/api/voices` with Preview button). Keep layout clean and responsive. No new libraries.
+Phase 8: Security Hardening & Consent Logging – Scope: Strengthen security (HIPAA/SOC2 compliance) and finalize consent capture. Implement end-to-end encryption for data in transit (HTTPS) and at rest (database encryption). Ensure proper authentication/authorization flows if user accounts exist. Audit logging should record all sessions (as noted in README)
+GitHub
+. Store user consent timestamps and IP addresses. Sanitize all inputs.
 
-**Acceptance:**
+Dependencies: Backend and DB infrastructure ready. An auth layer (OAuth or JWT) if not already present should be added.
 
-* Voices load and preview plays.
-* Form is compact, keyboard‑accessible.
+Goals: Protect PHI (sessions and transcripts), limit data retention (e.g. session TTL), and capture user consent explicitly in logs. Update privacy policy and HIPAA notices.
 
----
+Success Criteria: Security review passes: no sensitive data leaks, all endpoints require proper auth, and logs contain necessary audit trails. The system adheres to stated compliance (e.g. encryption at rest, audit logs
+GitHub
+). Consent flags in sessions are immutable once set.
 
-## Phase 3 — Create Agent then Create Session (contract‑first)
+Phase 9: DevOps & Production Readiness – Scope: Final deployment checklist and infrastructure. Containerize the app (Docker Compose is already used) and test deployment on staging/production environments. Configure CI/CD pipelines with linting and tests (as noted, npm run lint, pytest
+GitHub
+). Prepare environment variables for all services (OpenAI, ElevenLabs, LiveKit, Supabase). Set up monitoring/alerting for uptime and errors.
 
-**Task:** After AgentBuilder submit, call `/api/agents` then `/api/sessions` with proper schema.
+Dependencies: All code merged into release branch. Docker and orchestration (Kubernetes or similar) if needed.
 
-**Scope (files):** `AgentBuilder.tsx`, `frontend/src/lib/api.ts` (or equivalent), backend `sessions.py` only if needed to enforce schema.
+Goals: Ensure smooth deployment to cloud (e.g. AWS/GCP/Azure). Migrate Supabase schema as per database.py. Document rollback and backup procedures. Perform load/stress testing.
 
-**Guardrails:**
+Success Criteria: Application builds and runs in production mode without errors (npm run build, uvicorn main:app). Containers are secure and minimal. SSL certificates are provisioned. All services (DB, Redis/Qdrant replacements) are connected. The team can push new versions via CI. The system passes a final staging acceptance test (e.g. a scripted demo of Intake → Plan → Session).
 
-* **Payload 1 (POST /api/agents):** include contract with identity/traits/config derived from builder; include chosen voice.
-* **Payload 2 (POST /api/sessions):**
+Each phase should be tracked in project management (with tickets or branches). This roadmap uses the latest repository state to distinguish implemented pieces (e.g. IntakeForm UI and DB schemas exist) from those to build (AgentBuilder, calendar sync, LangGraph orchestration, etc.). By completing these milestones in order, Numen AI will progress toward a full production release with the vision of a voice-first, contract-driven hypnotherapy platform
 
-```json
-{
-  "user_id": "<uuid | demo-user>",
-  "agent_id": "<uuid from agent>",
-  "metadata": { "intake_data": { "goals": [...], "tone": "calm", "session_type": "manifestation" }, "created_by": "agent" }
-}
-```
 
-* If backend returns 422, show toast and keep user on page.
 
-**Prompt:**
+You are an autonomous self-auditing engineering agent working on the Numen AI repo. 
+The git repo and codebase are identical right now.
 
-> Update only `AgentBuilder.tsx` and `api.ts`. Implement: (1) POST `/api/agents` with the built contract; on success capture `agent.id`. (2) Read `intakeData` from localStorage; POST `/api/sessions` using the exact schema above. (3) On success, `router.push('/dashboard?agentId=...&sessionId=...&success=true')`. Add minimal loading states and error toasts; do not add libraries.
+### Current Status (pre-seeded baseline)
+- ✅ Phase 1: Intake & Agent Initialization – 100% complete
+- 🟡 Phase 2: Dashboard & Plan Generation – 80% complete
+  • Missing: Discovery questions UI, wiring “Generate My Plan” to /api/affirmations/generate, affirmations not auto-generated after agent creation
+- ❌ Phase 3: Plan Review & Consent – 0% complete
+- ❌ Phase 4: Live Therapy Session – 0% complete
+- ❌ Phase 5: Calendar & Scheduling – 0% complete
+- ❌ Phase 6: API Cleanup – Partial
+- ❌ Phase 7: UX/UI Polish – Partial
+- ❌ Phase 8: Security Hardening – Partial
+- ❌ Phase 9: DevOps – Partial
 
-**Acceptance:**
+### Workflow Rules
+1. **Audit Cycle**
+   - Compare the codebase against the Numen AI Roadmap to Production.
+   - For each phase, update status as ✅ / 🟡 / ❌.
+   - Identify blockers or gaps.
 
-* Successful flow yields agent + session rows and routes to dashboard.
-* No 500s; 422s show inline errors.
+2. **Action Planning**
+   - For each 🟡 or ❌, define tasks with:
+     • File(s) to edit
+     • Endpoint(s) to build/patch
+     • Component(s) to add
+     • Acceptance criteria
 
----
+3. **Execution Loop**
+   - Always start with the highest-priority dependency.
+   - Implement in full (replace or add complete files, not diffs).
+   - Re-run the Audit Cycle after each task.
+   - Stop if ambiguity arises → output `// TODO: clarify`.
 
-## Phase 4 — Meet Your Agent (intro/teaser step)
+4. **Guardrails**
+   - Edit ONLY files listed in your plan.
+   - Don’t refactor unrelated code.
+   - Follow Prettier (TS) / Black (Py) formatting.
+   - Confirm with `npm run lint && npm run typecheck && pytest`.
 
-**Task:** After redirect, show a brief agent intro with CTA to generate plan.
+5. **Self-Continuation**
+   - After each task, automatically re-audit.
+   - Continue until all Phases 1–9 are ✅ Complete.
+   - If external dependencies (LiveKit creds, OAuth keys) are missing, document the gap and skip.
 
-**Scope (files):** `dashboard/page.tsx` or a new `MeetYourAgent.tsx`.
+6. **Reporting**
+   - After each loop, output:
+     📊 Phase status table  
+     🛠️ Task just completed  
+     🎯 Next task planned  
 
-**Guardrails:**
-
-* Keep it short; allow expand for details.
-* CTA: **“Generate My Plan”**.
-
-**Prompt:**
-
-> Add a `MeetYourAgent` section on the dashboard when `success=true`. Show agent name, archetype, voice chosen, and a 2‑3 bullet capability list. Provide a primary button “Generate My Plan”. Do not start content generation yet.
-
-**Acceptance:**
-
-* Dashboard shows intro when arriving from creation flow.
-* Button is keyboard‑accessible.
-
----
-
-## Phase 5 — Discovery Qs + Plan Generation
-
-**Task:** Ask 2‑3 clarifying questions → generate plan via backend.
-
-**Scope (files):** `dashboard/page.tsx` (or `PlanWizard.tsx`), `api.ts`; backend endpoint if missing (reuse existing `/api/affirmations/generate` per E2E report).
-
-**Guardrails:**
-
-* Questions: priority focus, cadence (daily/weekly), time per day.
-* POST to existing generation endpoint (or create `/api/plan/generate` wrapper) and store protocol in session.
-
-**Prompt:**
-
-> Implement a small discovery step (3 short questions with defaults). On submit, call the existing generation endpoint to create a personalized plan (affirmations/daily practices) and persist it under the session’s `session_data.manifestation_protocol`. Show progress/loading and handle 422 with inline messages.
-
-**Acceptance:**
-
-* Generation returns a structured plan and is stored on the session.
-* UI shows a compact summary (counts of practices/affirmations/visualizations).
-
----
-
-## Phase 6 — Review + Consent
-
-**Task:** Present plan, disclaimer, and capture consent.
-
-**Scope (files):** `PlanReview.tsx` (new), `api.ts` (to update session consent flag).
-
-**Guardrails:**
-
-* Disclaimer: non‑medical guidance.
-* Buttons: **Accept & Start**, **Edit**, **Ask More**.
-
-**Prompt:**
-
-> Create `PlanReview.tsx` that shows a concise plan summary (bullets + “View details” expanders), a clear disclaimer (“This is not medical advice…”), and buttons for Accept, Edit, Ask More. On Accept, PATCH the session with `{ consent: true, consent_at: now }`. Do not add dependencies.
-
-**Acceptance:**
-
-* Consent captured and persisted.
-* Navigation buttons work.
-
----
-
-## Phase 7 — Next Actions (Start / Edit / Schedule / Explore)
-
-**Task:** Provide next steps panel.
-
-**Scope (files):** `dashboard/page.tsx` (actions area), routes for `/dashboard/agents`, `/dashboard/affirmations`, `/dashboard/scripts`.
-
-**Guardrails:**
-
-* “Start Session Now”: open session player (text/voice) — can be stub if player pending.
-* “View Schedule”: navigate to user schedule.
-* “Edit Agent”: return to AgentBuilder with current defaults.
-* “Explore Assets”: go to counts list.
-
-**Prompt:**
-
-> Add a “Next Actions” panel with 4 cards: Start Session Now, View Schedule, Edit Agent, Explore Assets. Use Next.js `Link` for navigation (no full reload). Ensure keyboard and screen reader labels.
-
-**Acceptance:**
-
-* Each card routes to the correct page.
-* No console errors; Lighthouse interaction ≥ 90.
-
----
-
-## Phase 8 — Immediate UX polish (from prior list)
-
-**Task:**
-
-1. Tabs row horizontally scrolls independently with snap.
-2. Dashboard count cards navigate.
-3. Purge all agents except Marcus Aurelius & Deepak Chopra.
-
-**Scope (files):** tabs component (`HorizontalTabs.tsx`), dashboard cards (`DashboardStatCard.tsx`), backend admin route or SQL migration.
-
-**Guardrails:**
-
-* No global CSS changes; only local component styles.
-* Admin purge endpoint must use parameterized queries.
-
-**Prompt:**
-
-> (a) Implement a `HorizontalTabs` component with `overflow-x-auto`, `snap-x`, `touch-action: pan-x`, wheel→horizontal behavior; integrate on dashboard. (b) Make Output Asset count cards act as links to their pages using Next `Link`. (c) Add an admin route `/admin/agents/purge` that deletes all agents not named `Marcus - Stoic Wisdom Coach` or `Deepak Chopra`, cascading related interactions safely. Use parameterized queries.
-
-**Acceptance:**
-
-* Tabs drag horizontally and snap; page doesn’t scroll while dragging.
-* Clicking a count card navigates to the corresponding page.
-* Only the two target agents remain; no orphaned rows; counts update.
-
----
-
-## Phase 9 — Error Handling, Toasters, Logging
-
-**Task:** Centralize API errors and add helpful UI feedback.
-
-**Scope (files):** `api.ts`, a simple `useToast()` hook or existing UI lib toasts.
-
-**Guardrails:**
-
-* No new libraries; re‑use existing toast if present.
-* Map HTTP codes: 4xx → user guidance, 5xx → retry or contact support.
-
-**Prompt:**
-
-> Refactor `api.ts` to a small client with baseURL, JSON helpers, and uniform error handling. Add lightweight toasts for common failures (network, 422 validation). Ensure all Phase 1–7 calls use the client. Do not change endpoint contracts.
-
-**Acceptance:**
-
-* All API calls go through the client.
-* Clear, consistent error toasts visible on failures.
-
----
-
-## Phase 10 — Sanity Tests & Demo Script
-
-**Task:** Validate the entire critical path and script a 2‑minute demo.
-
-**Scope (files):** none (tests/manual steps). Optional Cypress skeleton.
-
-**Guardrails:**
-
-* Do not add dependencies; provide a manual test checklist.
-
-**Prompt:**
-
-> Produce a short checklist that verifies: Intake → AgentBuilder (voices preview) → Agent created → Session created → Dashboard intro → Discovery → Plan generated → Consent captured → Next Actions routes. Include the exact payloads observed in network tab and confirm session JSON includes `session_data.manifestation_protocol`.
-
-**Acceptance:**
-
-* Checklist executed with screenshots/recording.
-* No blockers; all navigation works.
-
----
-
-### Notes & Conventions
-
-* If file paths differ, first **locate by filename**, then constrain edits to the found path.
-* Prefer **422 with validation detail** over 500s; log `RAW BODY` on backend during development.
-* Keep copy concise. Long explanations should be behind an expandable disclosure.
-* ElevenLabs endpoints assumed present (`GET /api/voices`, `POST /api/voices/preview`). If missing, propose minimal backend stubs using existing service wrappers.
-
-> Run phases in order. Each phase should result in a small PR with screenshots. Stop on ambiguity and emit `// TODO: clarify` rather than guessing.
+### Next Step
+Begin at Phase 2. Add discovery questions after “Meet Your Agent”, wire “Generate My Plan” to `/api/affirmations/generate`, and display generated affirmations in the Dashboard tabs. Then re-audit and continue.
