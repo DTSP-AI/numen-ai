@@ -16,11 +16,17 @@ interface Affirmation {
 interface Props {
   affirmation: Affirmation
   onUpdate: () => void
+  userId?: string
 }
 
-export function AffirmationCard({ affirmation, onUpdate }: Props) {
+export function AffirmationCard({ affirmation, onUpdate, userId = "00000000-0000-0000-0000-000000000001" }: Props) {
   const [isPlaying, setIsPlaying] = useState(false)
-  const [audio] = useState(() => typeof Audio !== "undefined" && affirmation.audio_url ? new Audio(`http://localhost:8000${affirmation.audio_url}`) : null)
+  const [isSynthesizing, setIsSynthesizing] = useState(false)
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(() =>
+    typeof Audio !== "undefined" && affirmation.audio_url
+      ? new Audio(`http://localhost:8000${affirmation.audio_url}`)
+      : null
+  )
 
   const categoryColors = {
     identity: "from-kurzgesagt-yellow to-kurzgesagt-orange",
@@ -59,23 +65,33 @@ export function AffirmationCard({ affirmation, onUpdate }: Props) {
   }
 
   const handleSynthesize = async () => {
+    setIsSynthesizing(true)
     try {
       const response = await fetch(`http://localhost:8000/api/affirmations/${affirmation.id}/synthesize`, {
         method: "POST",
         headers: {
-          "x-user-id": "test-user-123"
+          "x-user-id": userId
         }
       })
 
       if (response.ok) {
-        alert("Audio synthesized successfully!")
+        const data = await response.json()
+        // Create new audio element with synthesized audio
+        if (data.audio_url) {
+          const newAudio = new Audio(`http://localhost:8000${data.audio_url}`)
+          setAudio(newAudio)
+        }
         onUpdate()
       } else {
-        alert("Audio synthesis failed. Check ELEVENLABS_API_KEY.")
+        const error = await response.text()
+        console.error("Synthesis failed:", error)
+        alert("Audio synthesis failed. Check ELEVENLABS_API_KEY in backend.")
       }
     } catch (error) {
       console.error("Synthesis error:", error)
-      alert("Failed to synthesize audio")
+      alert("Failed to synthesize audio. Please try again.")
+    } finally {
+      setIsSynthesizing(false)
     }
   }
 
@@ -123,9 +139,10 @@ export function AffirmationCard({ affirmation, onUpdate }: Props) {
           ) : (
             <button
               onClick={handleSynthesize}
-              className="px-4 py-2 rounded-lg bg-kurzgesagt-purple text-white font-semibold hover:bg-kurzgesagt-purple/80 transition-all"
+              disabled={isSynthesizing}
+              className="px-4 py-2 rounded-lg bg-kurzgesagt-purple text-white font-semibold hover:bg-kurzgesagt-purple/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              🎤 Synthesize Audio
+              {isSynthesizing ? "⏳ Synthesizing..." : "🎤 Generate Voice"}
             </button>
           )}
         </div>

@@ -1,7 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
+from pathlib import Path
 
 from config import settings
 from routers import sessions, contracts, therapy, protocols, agents, affirmations, dashboard, voices
@@ -76,6 +78,13 @@ app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
 app.include_router(contracts.router, prefix="/api/contracts", tags=["contracts"])
 app.include_router(therapy.router, prefix="/api/therapy", tags=["therapy"])
 app.include_router(protocols.router, prefix="/api/protocols", tags=["protocols"])
+
+# Mount static files for audio
+audio_dir = Path("backend/audio_files")
+audio_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/audio", StaticFiles(directory=str(audio_dir)), name="audio")
+
+logger.info(f"Audio files directory: {audio_dir.absolute()}")
 
 
 if __name__ == "__main__":
