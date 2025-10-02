@@ -1,9 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from uuid import UUID, uuid4
 from datetime import datetime
 import logging
 
-from models.schemas import SessionCreate, SessionResponse, SessionStatus
+from models.schemas import SessionCreate, SessionResponse, SessionStatus, ConsentUpdate, ConsentResponse
 from database import get_pg_pool
 from services.livekit_service import LiveKitService
 
@@ -132,3 +132,80 @@ async def update_session_status(session_id: UUID, status: SessionStatus):
     except Exception as e:
         logger.error(f"Failed to update session status: {e}")
         raise HTTPException(status_code=500, detail="Failed to update session")
+
+
+@router.patch("/{session_id}/consent", response_model=ConsentResponse)
+async def update_consent(session_id: UUID, consent: ConsentUpdate, request: Request):
+    """
+    Update user consent for therapy session
+
+    This endpoint captures user consent with:
+    - Timestamp (immutable once set)
+    - IP address
+    - User agent
+
+    Required for HIPAA/SOC2 compliance.
+    """
+    pool = get_pg_pool()
+
+    try:
+        # Get client IP
+        ip_address = consent.ip_address or request.client.host if request.client else "unknown"
+        user_agent = consent.user_agent or request.headers.get("user-agent", "unknown")
+
+        async with pool.acquire() as conn:
+            # Check if session exists
+            session = await conn.fetchrow(
+                "SELECT id, session_data FROM sessions WHERE id = $1",
+                session_id
+            )
+
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            # Get existing session data
+            session_data = session["session_data"] or {}
+
+            # Check if already consented (immutable)
+            if session_data.get("consent", {}).get("consented"):
+                logger.warning(f"Attempt to modify existing consent for session {session_id}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Consent already provided and cannot be modified"
+                )
+
+            # Update session data with consent
+            now = datetime.utcnow()
+            session_data["consent"] = {
+                "consented": consent.consented,
+                "consented_at": now.isoformat(),
+                "ip_address": ip_address,
+                "user_agent": user_agent
+            }
+
+            # Update database
+            await conn.execute(
+                """
+                UPDATE sessions
+                SET session_data = $1, updated_at = $2
+                WHERE id = $3
+                """,
+                session_data,
+                now,
+                session_id
+            )
+
+            logger.info(f"Consent updated for session {session_id}: consented={consent.consented}")
+
+            return ConsentResponse(
+                session_id=session_id,
+                consented=consent.consented,
+                consented_at=now if consent.consented else None,
+                message="Consent recorded successfully" if consent.consented else "Consent declined"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update consent: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update consent")

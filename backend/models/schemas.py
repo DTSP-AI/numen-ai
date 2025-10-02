@@ -44,6 +44,21 @@ class SessionResponse(BaseModel):
     updated_at: datetime
 
 
+class ConsentUpdate(BaseModel):
+    """User consent for plan and therapy"""
+    consented: bool
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+
+
+class ConsentResponse(BaseModel):
+    """Response after consent update"""
+    session_id: UUID
+    consented: bool
+    consented_at: Optional[datetime] = None
+    message: str
+
+
 class ContractCreate(BaseModel):
     session_id: UUID
     user_id: str
