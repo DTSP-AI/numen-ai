@@ -12,6 +12,7 @@ import { HorizontalTabs } from "@/components/HorizontalTabs"
 import { DashboardStatCard } from "@/components/DashboardStatCard"
 import { DiscoveryQuestions } from "@/components/DiscoveryQuestions"
 import { ProtocolSummary } from "@/components/ProtocolSummary"
+import { PlanReview } from "@/components/PlanReview"
 
 interface Agent {
   id: string
@@ -76,6 +77,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "affirmations" | "scripts" | "schedule">("overview")
   const [showMeetAgent, setShowMeetAgent] = useState(success)  // Phase 4: Show intro on first visit
   const [showDiscovery, setShowDiscovery] = useState(false)  // Phase 2: Discovery questions
+  const [showPlanReview, setShowPlanReview] = useState(false)  // Phase 3: Plan review & consent
 
   // Demo user ID (in production, get from auth context)
   const userId = "00000000-0000-0000-0000-000000000001"
@@ -83,6 +85,29 @@ export default function DashboardPage() {
   useEffect(() => {
     loadDashboard()
   }, [])
+
+  useEffect(() => {
+    // After dashboard loads, check if consent needed
+    const checkConsent = async () => {
+      if (!sessionId) return
+
+      try {
+        const response = await fetch(`http://localhost:8000/api/sessions/${sessionId}`)
+        const data = await response.json()
+
+        // If affirmations exist but no consent, show plan review
+        if (affirmations.length > 0 && !data.session_data?.consent?.consented) {
+          setShowPlanReview(true)
+        }
+      } catch (error) {
+        console.error("Failed to check consent status:", error)
+      }
+    }
+
+    if (sessionId && affirmations.length > 0 && !loading) {
+      checkConsent()
+    }
+  }, [sessionId, affirmations.length, loading])
 
   const loadDashboard = async () => {
     try {
@@ -110,10 +135,69 @@ export default function DashboardPage() {
     }
   }
 
-  const handleDiscoveryComplete = () => {
+  const handleDiscoveryComplete = async () => {
     setShowDiscovery(false)
     setShowMeetAgent(false)
-    loadDashboard() // Reload to show generated affirmations
+    await loadDashboard() // Reload to show generated affirmations
+
+    // After affirmations generated, check if user needs to consent
+    if (sessionId && affirmations.length > 0) {
+      checkConsentStatus()
+    }
+  }
+
+  const checkConsentStatus = async () => {
+    if (!sessionId) return
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/sessions/${sessionId}`)
+      const data = await response.json()
+
+      // If affirmations exist but no consent, show plan review
+      if (affirmations.length > 0 && !data.session_data?.consent?.consented) {
+        setShowPlanReview(true)
+      }
+    } catch (error) {
+      console.error("Failed to check consent status:", error)
+    }
+  }
+
+  const handleConsentAccepted = () => {
+    setShowPlanReview(false)
+    loadDashboard() // Reload to reflect consent
+  }
+
+  const handleEditPlan = () => {
+    setShowPlanReview(false)
+    setShowDiscovery(true) // Go back to discovery questions
+  }
+
+  const handleAskQuestions = () => {
+    setShowPlanReview(false)
+    // TODO: Implement Q&A flow with agent
+    alert("Q&A with your agent coming soon!")
+  }
+
+  // Show plan review & consent (Phase 3)
+  if (showPlanReview && sessionId && affirmations.length > 0) {
+    const agent = dashboardData?.agents?.find(a => a.id === agentId) || dashboardData?.agents?.[0]
+
+    return (
+      <PlanReview
+        sessionId={sessionId}
+        agentName={agent?.name || "Your Agent"}
+        protocol={{
+          daily_practices: 4,
+          visualizations: 3,
+          success_metrics: 8,
+          checkpoints: 5
+        }}
+        affirmations={affirmations}
+        onAccept={handleConsentAccepted}
+        onEdit={handleEditPlan}
+        onAskQuestions={handleAskQuestions}
+      />
+    )
   }
 
   // Show discovery questions flow

@@ -188,3 +188,62 @@ The git repo and codebase are identical right now.
 
 ### Next Step
 Begin at Phase 2. Add discovery questions after “Meet Your Agent”, wire “Generate My Plan” to `/api/affirmations/generate`, and display generated affirmations in the Dashboard tabs. Then re-audit and continue.
+
+
+
+MOST RECENT PROMPT
+
+Got it 👍 — focus on **functionality first**, Git push later.
+
+Here’s the state of play and what needs to happen next to get the app usable end-to-end:
+
+---
+
+## 🔧 Functional Checklist (Immediate)
+
+### ✅ Already Working
+
+* IntakeForm → AgentBuilder (7-step wizard, voice picker, agent/session creation)
+* Dashboard loads → “Meet Your Agent” intro → DiscoveryQuestions wizard
+* Discovery flow → triggers `/api/affirmations/generate` → Protocol summary displayed
+* Backend PATCH `/api/sessions/{id}/consent` endpoint working (immutable consent, IP, UA logged)
+
+### ❌ Still Missing (Critical for Functionality)
+
+1. **PlanReview UI**
+
+   * Needs a `PlanReview.tsx` component:
+
+     * Show protocol details (daily practices, affirmations, visualizations, metrics)
+     * Disclaimer: *“This is not medical advice…”*
+     * Buttons: **Accept & Start Session** (calls consent endpoint), **Edit Plan**, **Ask More Questions**
+
+2. **Consent Gating**
+
+   * Dashboard must check:
+
+     * If `session_data.consent.consented == true` → unlock therapy features
+     * Else → force user into `PlanReview` before allowing therapy
+
+3. **Session Unlock Flow**
+
+   * After consent → show Next Actions panel (Start Session, Edit Agent, View Schedule, Explore Assets)
+
+---
+
+## 🎯 Next Step (Phase 3 Part 2 Functional Fix)
+
+* **Files to touch:**
+
+  * `frontend/src/components/PlanReview.tsx` → new component
+  * `frontend/src/app/dashboard/page.tsx` → integrate review + gating
+
+* **Acceptance Criteria:**
+
+  * User sees plan summary + disclaimer
+  * User cannot start session until they consent
+  * Consent stored in backend (verify via DB/API)
+  * Once accepted, Dashboard shows Next Actions
+
+---
+
