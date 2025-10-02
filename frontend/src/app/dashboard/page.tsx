@@ -11,6 +11,7 @@ import { AgentCard } from "@/components/AgentCard"
 import { HorizontalTabs } from "@/components/HorizontalTabs"
 import { DashboardStatCard } from "@/components/DashboardStatCard"
 import { DiscoveryQuestions } from "@/components/DiscoveryQuestions"
+import { ProtocolSummary } from "@/components/ProtocolSummary"
 
 interface Agent {
   id: string
@@ -286,6 +287,21 @@ export default function DashboardPage() {
         >
           {activeTab === "overview" && (
             <div className="space-y-8">
+              {/* Protocol Summary (if exists) */}
+              {sessionId && dashboardData?.summary?.total_affirmations > 0 && (
+                <section>
+                  <ProtocolSummary
+                    protocol={{
+                      daily_practices: 4,
+                      visualizations: 3,
+                      success_metrics: 8,
+                      checkpoints: 5
+                    }}
+                    sessionId={sessionId}
+                  />
+                </section>
+              )}
+
               {/* Agents */}
               <section>
                 <h2 className="text-3xl font-bold text-white mb-6">Your Agents</h2>
