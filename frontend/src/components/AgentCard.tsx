@@ -1,6 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
+import { useRouter } from "next/navigation"
 
 interface Agent {
   id: string
@@ -13,9 +14,11 @@ interface Agent {
 
 interface Props {
   agent: Agent
+  sessionId?: string
 }
 
-export function AgentCard({ agent }: Props) {
+export function AgentCard({ agent, sessionId }: Props) {
+  const router = useRouter()
   const typeColors = {
     conversational: "from-kurzgesagt-aqua to-kurzgesagt-teal",
     voice: "from-kurzgesagt-purple to-kurzgesagt-indigo",
@@ -71,6 +74,7 @@ export function AgentCard({ agent }: Props) {
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
+        onClick={() => router.push(`/chat/${agent.id}${sessionId ? `?sessionId=${sessionId}` : ''}`)}
         className="mt-4 w-full px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold transition-all"
       >
         Chat with Agent →

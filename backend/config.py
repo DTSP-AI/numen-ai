@@ -5,17 +5,23 @@ from typing import Optional
 class Settings(BaseSettings):
     # OpenAI / LLM
     openai_api_key: Optional[str] = None
+    OPENAI_API_KEY: Optional[str] = None
 
     # LiveKit
     livekit_api_key: Optional[str] = None
     livekit_api_secret: Optional[str] = None
     livekit_url: Optional[str] = None
+    LIVEKIT_API_KEY: Optional[str] = None
+    LIVEKIT_API_SECRET: Optional[str] = None
+    LIVEKIT_URL: Optional[str] = None
 
     # Deepgram
     deepgram_api_key: Optional[str] = None
+    DEEPGRAM_API_KEY: Optional[str] = None
 
     # ElevenLabs
     elevenlabs_api_key: Optional[str] = None
+    ELEVENLABS_API_KEY: Optional[str] = None
 
     # Database - Supabase connection string (takes precedence)
     supabase_db_url: Optional[str] = None
@@ -46,7 +52,7 @@ class Settings(BaseSettings):
     session_ttl_seconds: int = 3600
 
     class Config:
-        env_file = "../.env"
+        env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "ignore"
