@@ -1,22 +1,10 @@
 "use client"
 
-import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { IntakeForm } from "@/components/IntakeForm"
-import { TherapySession } from "@/components/TherapySession"
 
 export default function Home() {
   const router = useRouter()
-  const [sessionId, setSessionId] = useState<string | null>(null)
-  const [contractId, setContractId] = useState<string | null>(null)
-  const [stage, setStage] = useState<"intake" | "therapy">("intake")
-
-  const handleIntakeComplete = async (contractId: string, sessionId: string) => {
-    setContractId(contractId)
-    setSessionId(sessionId)
-    setStage("therapy")
-  }
 
   return (
     <main className="min-h-screen gradient-kurzgesagt relative overflow-hidden">
@@ -48,64 +36,37 @@ export default function Home() {
         />
       </div>
 
-      <div className="container mx-auto px-6 py-16 lg:py-24 relative z-10">
+      <div className="container mx-auto px-6 py-40 lg:py-48 relative z-10">
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <motion.div
-            className="text-center mb-8 lg:mb-20"
+            className="text-center mb-32 lg:mb-40"
             initial={{ opacity: 0, y: -30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
           >
-            <h1 className="text-6xl lg:text-7xl font-bold text-white mb-6 font-[family-name:var(--font-heading)] tracking-tight">
+            <h1 className="text-6xl lg:text-7xl font-bold text-white mb-12 font-[family-name:var(--font-heading)] tracking-tight">
               Numen AI
             </h1>
-            <p className="text-xl lg:text-2xl text-white/90 max-w-2xl mx-auto leading-relaxed text-balance">
-              Personalized AI-Powered Manifestation & Transformation
+            <p className="text-xl lg:text-2xl text-white/90 max-w-2xl mx-auto leading-relaxed mb-16">
+              Your personal AI companion for manifestation, alignment, and transformation.
+              <span className="block mt-2">
+                Discover the next evolution of intentional living.
+              </span>
             </p>
-          </motion.div>
 
-          {/* Main Content Card */}
-          <motion.div
-            className="glass-card rounded-3xl shadow-2xl p-8 lg:p-12 border-white/20"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            {stage === "intake" ? (
-              <IntakeForm onComplete={handleIntakeComplete} />
-            ) : (
-              <TherapySession
-                sessionId={sessionId!}
-                contractId={contractId!}
-                onBack={() => setStage("intake")}
-              />
-            )}
-          </motion.div>
-
-          {/* Footer */}
-          <motion.div
-            className="text-center mt-10 text-white/80 text-base"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-          >
-            <p className="flex items-center justify-center gap-2">
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
+            {/* Hero CTA */}
+            <motion.button
+              onClick={() => router.push('/create-agent?userId=00000000-0000-0000-0000-000000000001')}
+              className="px-10 py-4 bg-gradient-to-r from-kurzgesagt-purple to-kurzgesagt-coral text-white text-xl font-bold rounded-xl shadow-2xl hover:shadow-kurzgesagt-purple/50 hover:scale-105 transition-all duration-300 inline-flex items-center gap-3"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              Create Your Guide
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
-              Your privacy is protected. All sessions are confidential.
-            </p>
+            </motion.button>
           </motion.div>
         </div>
       </div>
