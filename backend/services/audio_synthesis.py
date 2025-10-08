@@ -26,7 +26,8 @@ class AudioSynthesisService:
     """
 
     def __init__(self):
-        self.api_key = os.getenv("ELEVENLABS_API_KEY")
+        from config import settings
+        self.api_key = settings.elevenlabs_api_key
         self.base_url = "https://api.elevenlabs.io/v1"
 
         if not self.api_key:

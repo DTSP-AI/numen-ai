@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     elevenlabs_api_key: Optional[str] = None
     ELEVENLABS_API_KEY: Optional[str] = None
 
+    # Mem0 (cloud-based semantic memory)
+    mem0_api_key: Optional[str] = None
+    MEM0_API_KEY: Optional[str] = None
+
     # Database - Supabase connection string (takes precedence)
     supabase_db_url: Optional[str] = None
     supabase_url: Optional[str] = None
@@ -51,8 +55,16 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     session_ttl_seconds: int = 3600
 
+    # Feature Flags
+    baseline_ai_onboarding: bool = True  # Set to True for baseline flow
+
     class Config:
-        env_file = ".env"
+        # Look for .env in parent directory (project root)
+        import os
+        from pathlib import Path
+        backend_dir = Path(__file__).parent
+        project_root = backend_dir.parent
+        env_file = str(project_root / ".env")
         env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "ignore"

@@ -1,5 +1,5 @@
 from elevenlabs.client import ElevenLabs
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Optional, List, Dict, Any
 import logging
 
 from config import settings
@@ -113,6 +113,67 @@ class ElevenLabsService:
 
         except Exception as e:
             logger.error(f"Failed to generate speech: {e}")
+            raise
+
+    async def generate_speech_with_voice_id(
+        self,
+        text: str,
+        voice_id: str,
+        model: str = "eleven_turbo_v2",
+        stability: float = 0.75,
+        similarity_boost: float = 0.75
+    ) -> bytes:
+        """
+        Generate speech with explicit voice_id.
+        Used for voice previews during agent creation.
+        """
+        try:
+            # Generate complete audio with specified voice_id
+            audio_bytes = self.client.generate(
+                text=text,
+                voice=voice_id,
+                model=model
+            )
+
+            # Convert generator to bytes if needed
+            if hasattr(audio_bytes, '__iter__'):
+                audio_bytes = b"".join(audio_bytes)
+
+            logger.info(f"Generated audio with voice {voice_id} ({len(audio_bytes)} bytes)")
+
+            return audio_bytes
+
+        except Exception as e:
+            logger.error(f"Failed to generate speech with voice {voice_id}: {e}")
+            raise
+
+    def get_available_voices(self) -> List[Dict[str, Any]]:
+        """
+        Fetch available voices from ElevenLabs API.
+        Returns list of voice objects with metadata.
+        """
+        try:
+            # Fetch voices from ElevenLabs SDK
+            voices_response = self.client.voices.get_all()
+
+            # Convert to list of dicts with relevant fields
+            voices_list = []
+            for voice in voices_response.voices:
+                voice_dict = {
+                    "id": voice.voice_id,
+                    "name": voice.name,
+                    "category": voice.category if hasattr(voice, 'category') else "general",
+                    "description": voice.description if hasattr(voice, 'description') else "",
+                    "labels": voice.labels if hasattr(voice, 'labels') else {},
+                    "preview_url": voice.preview_url if hasattr(voice, 'preview_url') else None,
+                }
+                voices_list.append(voice_dict)
+
+            logger.info(f"Fetched {len(voices_list)} voices from ElevenLabs")
+            return voices_list
+
+        except Exception as e:
+            logger.error(f"Failed to fetch voices from ElevenLabs: {e}")
             raise
 
 
