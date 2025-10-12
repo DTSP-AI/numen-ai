@@ -231,7 +231,7 @@ async def list_agents(
 @router.get("/agents/{agent_id}")
 async def get_agent(
     agent_id: str,
-    tenant_id: str = Header(None, alias="x-tenant-id")
+    x_tenant_id: Optional[str] = Header(None, alias="x-tenant-id")
 ):
     """
     Get agent details by ID
@@ -253,7 +253,7 @@ async def get_agent(
     ```
     """
     try:
-        tenant_id = tenant_id or get_tenant_id()
+        tenant_id = x_tenant_id or get_tenant_id()
 
         agent = await agent_service.get_agent(agent_id, tenant_id)
 
