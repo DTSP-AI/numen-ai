@@ -344,7 +344,9 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
         name: agentName,
         type: "conversational",
         identity: {
-          short_description: `${selectedRoles.join(', ')} - ${mission.substring(0, 100)}`,
+          // Backend validation requires short_description <= 100 characters
+          // Truncate roles (max 60 chars) and mission (max 35 chars) with separator (5 chars)
+          short_description: `${selectedRoles.join(', ').substring(0, 60)} - ${mission.substring(0, 35)}`,
           full_description: mission,
           character_role: selectedRoles[0] || "",
           roles: selectedRoles,
