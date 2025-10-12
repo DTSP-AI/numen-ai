@@ -127,18 +127,24 @@ async def generate_avatar(
             file_extension = f".{request.output_format}"
             unique_filename = f"{uuid.uuid4()}{file_extension}"
 
-            # Upload to Supabase Storage with tenant isolation
+            # Try Supabase Storage first, fall back to local filesystem on failure
+            avatar_url = None
             if supabase_storage.available:
-                avatar_url = await supabase_storage.upload_avatar(
-                    file_bytes=image_bytes,
-                    filename=unique_filename,
-                    tenant_id=tenant_id,
-                    user_id=user_id,
-                    content_type=f"image/{request.output_format}"
-                )
-                logger.info(f"✅ Avatar generated and saved to Supabase: {avatar_url}")
-            else:
-                # Fallback to local filesystem
+                try:
+                    avatar_url = await supabase_storage.upload_avatar(
+                        file_bytes=image_bytes,
+                        filename=unique_filename,
+                        tenant_id=tenant_id,
+                        user_id=user_id,
+                        content_type=f"image/{request.output_format}"
+                    )
+                    logger.info(f"✅ Avatar generated and saved to Supabase: {avatar_url}")
+                except Exception as storage_error:
+                    logger.warning(f"Supabase Storage failed: {storage_error}, using filesystem fallback")
+                    avatar_url = None
+
+            # Fallback to local filesystem if Supabase unavailable or failed
+            if not avatar_url:
                 avatars_base = Path("backend/avatars")
                 tenant_dir = avatars_base / tenant_id
                 tenant_dir.mkdir(parents=True, exist_ok=True)
@@ -226,18 +232,24 @@ async def upload_avatar(
         file_extension = Path(file.filename).suffix
         unique_filename = f"{uuid.uuid4()}{file_extension}"
 
-        # Upload to Supabase Storage with tenant isolation
+        # Try Supabase Storage first, fall back to local filesystem on failure
+        avatar_url = None
         if supabase_storage.available:
-            avatar_url = await supabase_storage.upload_avatar(
-                file_bytes=contents,
-                filename=unique_filename,
-                tenant_id=tenant_id,
-                user_id=user_id,
-                content_type=file.content_type or "image/png"
-            )
-            logger.info(f"Avatar uploaded to Supabase: {avatar_url} (tenant: {tenant_id})")
-        else:
-            # Fallback to local filesystem
+            try:
+                avatar_url = await supabase_storage.upload_avatar(
+                    file_bytes=contents,
+                    filename=unique_filename,
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    content_type=file.content_type or "image/png"
+                )
+                logger.info(f"Avatar uploaded to Supabase: {avatar_url} (tenant: {tenant_id})")
+            except Exception as storage_error:
+                logger.warning(f"Supabase Storage failed: {storage_error}, using filesystem fallback")
+                avatar_url = None
+
+        # Fallback to local filesystem if Supabase unavailable or failed
+        if not avatar_url:
             avatars_base = Path("backend/avatars")
             tenant_dir = avatars_base / tenant_id
             tenant_dir.mkdir(parents=True, exist_ok=True)

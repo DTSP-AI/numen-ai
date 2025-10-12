@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Space_Grotesk, Inter } from "next/font/google"
 import "./globals.css"
 import { Navigation } from "@/components/Navigation"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -30,8 +31,10 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
       </head>
       <body className={inter.className}>
-        <Navigation />
-        {children}
+        <ErrorBoundary>
+          <Navigation />
+          {children}
+        </ErrorBoundary>
       </body>
     </html>
   )

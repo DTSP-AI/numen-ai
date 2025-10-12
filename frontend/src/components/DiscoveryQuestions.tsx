@@ -8,7 +8,7 @@ interface DiscoveryQuestionsProps {
   agentId: string
   sessionId: string
   userId: string
-  onComplete: () => void
+  onComplete: (planResult?: any) => void
 }
 
 export function DiscoveryQuestions({ agentId, sessionId, userId, onComplete }: DiscoveryQuestionsProps) {
@@ -60,7 +60,7 @@ export function DiscoveryQuestions({ agentId, sessionId, userId, onComplete }: D
       const timeframe = answers.cadence === "daily" ? "30_days" :
                        answers.cadence === "3x_week" ? "60_days" : "90_days"
 
-      const response = await fetch("http://localhost:8000/api/affirmations/generate", {
+      const response = await fetch("http://localhost:8003/api/affirmations/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -85,8 +85,8 @@ export function DiscoveryQuestions({ agentId, sessionId, userId, onComplete }: D
       const result = await response.json()
       console.log("Plan generated:", result)
 
-      // Complete and reload dashboard
-      onComplete()
+      // Pass results to parent instead of just triggering reload
+      onComplete(result)
     } catch (error) {
       console.error("Failed to generate plan:", error)
       alert("Failed to generate your personalized plan. Please try again.")

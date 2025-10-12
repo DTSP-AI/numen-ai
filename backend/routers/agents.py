@@ -25,7 +25,8 @@ from models.agent import (
     AgentIdentity,
     AgentTraits,
     AgentConfiguration,
-    AgentMetadata
+    AgentMetadata,
+    VoiceConfiguration
 )
 from services.agent_service import AgentService
 from pydantic import BaseModel
@@ -117,14 +118,38 @@ async def create_agent(
         tenant_id = tenant_id or get_tenant_id()
         user_id = user_id or get_user_id()
 
+        # Apply default voice if none provided and voice_enabled is True
+        voice_config = request.voice
+        if not voice_config and (request.configuration and request.configuration.voice_enabled):
+            logger.info("No voice provided but voice_enabled=True, using default voice (Rachel)")
+            voice_config = VoiceConfiguration(
+                provider="elevenlabs",
+                voice_id="21m00Tcm4TlvDq8ikWAM",  # Rachel - default calm voice
+                language="en-US",
+                speed=1.0,
+                pitch=1.0,
+                stability=0.75,
+                similarity_boost=0.75,
+                stt_provider="deepgram",
+                stt_model="nova-2",
+                stt_language="en",
+                vad_enabled=True
+            )
+
+        # Apply default avatar if none provided
+        identity = request.identity
+        if not identity.avatar_url:
+            logger.info("No avatar provided, using placeholder")
+            identity.avatar_url = f"https://api.dicebear.com/7.x/avataaars/svg?seed={uuid.uuid4()}"
+
         # Build complete contract
         contract = AgentContract(
             name=request.name,
             type=request.type,
-            identity=request.identity,
+            identity=identity,
             traits=request.traits or AgentTraits(),
             configuration=request.configuration or AgentConfiguration(),
-            voice=request.voice,
+            voice=voice_config,
             metadata=AgentMetadata(
                 tenant_id=tenant_id,
                 owner_id=user_id,
@@ -552,3 +577,267 @@ async def get_agent_versions(
     except Exception as e:
         logger.error(f"Failed to get agent versions: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve versions")
+
+
+# ============================================================================
+# BASELINE FLOW ENDPOINT
+# ============================================================================
+
+@router.post("/agents/from_intake_contract")
+async def create_agent_from_intake(
+    user_id: str,
+    intake_contract: dict,
+    tenant_id: str = Header(None, alias="x-tenant-id")
+):
+    """
+    Baseline Flow: Create Guide Agent + Session + Protocol in one call
+
+    Process:
+    1. Generate GuideContract from IntakeContract (AI-powered recommendations)
+    2. Create Agent with 4 core attributes
+    3. Auto-create Session
+    4. Immediately generate Manifestation Protocol
+    5. Return complete package
+
+    Example Request:
+    {
+      "user_id": "uuid",
+      "intake_contract": {
+        "normalized_goals": ["Build confidence"],
+        "prefs": {"tone": "calm", "session_type": "manifestation"},
+        "notes": "..."
+      }
+    }
+
+    Example Response:
+    {
+      "agent": {...},
+      "session": {...},
+      "protocol": {
+        "affirmations": [...],
+        "daily_practices": [...],
+        ...
+      }
+    }
+    """
+    try:
+        from models.schemas import GuideAttributes, CreateFromIntakeResponse
+        from agents.manifestation_protocol_agent import ManifestationProtocolAgent
+        import json
+        import uuid as uuid_lib
+
+        tenant_id = tenant_id or get_tenant_id()
+
+        logger.info(f"🌟 Baseline flow: Creating guide from intake for user {user_id}")
+
+        # 1. Generate GuideContract from intake
+        normalized_goals = intake_contract.get("normalized_goals", [])
+        prefs = intake_contract.get("prefs", {})
+        tone = prefs.get("tone", "calm")
+        session_type = prefs.get("session_type", "manifestation")
+
+        # AI-powered role selection based on session_type
+        role_mapping = {
+            "manifestation": "Manifestation Mentor",
+            "anxiety_relief": "Stoic Sage",
+            "sleep_hypnosis": "Mindfulness Teacher",
+            "confidence": "Life Coach",
+            "habit_change": "Wellness Coach"
+        }
+        primary_role = role_mapping.get(session_type, "Life Coach")
+
+        # AI-powered interaction style selection based on tone
+        style_mapping = {
+            "calm": ["Gentle", "Supportive"],
+            "energetic": ["Motivational", "Encouraging"],
+            "authoritative": ["Direct", "Analytical"],
+            "gentle": ["Compassionate", "Nurturing"],
+            "empowering": ["Empowering", "Encouraging"]
+        }
+        interaction_styles = style_mapping.get(tone, ["Supportive", "Encouraging"])
+
+        # Generate guide name from primary goal
+        primary_goal = normalized_goals[0] if normalized_goals else "Personal Growth"
+        guide_name = f"{primary_goal[:30]} Guide"
+
+        # Calculate optimal traits from intake data using AI OR user controls
+        from services.attribute_calculator import calculate_guide_attributes
+        from models.schemas import IntakeContract as SchemaIntakeContract
+
+        try:
+            # Convert to IntakeContract schema for calculator
+            intake_schema = SchemaIntakeContract(
+                name=intake_contract.get("name", "User"),
+                session_type=session_type,
+                tone=tone,
+                goals=normalized_goals,
+                challenges=intake_contract.get("challenges", []),
+                preferences=intake_contract.get("preferences", {})
+            )
+
+            # Check if user provided guide controls (Priority 1)
+            user_controls = request.guide_controls if hasattr(request, 'guide_controls') else None
+
+            if user_controls:
+                logger.info(f"🎛️ User controls provided: {user_controls.model_dump()}")
+                calculated_traits = await calculate_guide_attributes(intake_schema, user_controls=user_controls)
+                logger.info(f"✅ Traits from user controls: {calculated_traits.model_dump()}")
+            else:
+                # Use AI to calculate personalized trait values (Priority 2)
+                calculated_traits = await calculate_guide_attributes(intake_schema)
+                logger.info(f"✅ AI-calculated traits: {calculated_traits.model_dump()}")
+        except Exception as e:
+            logger.warning(f"Trait calculation failed, using defaults: {e}")
+            # Fallback to session-type defaults
+            calculated_traits = AgentTraits()
+
+        # Build GuideContract with AI-calculated attributes
+        guide_contract_dict = {
+            "name": guide_name,
+            "type": "conversational",
+            "identity": {
+                "short_description": f"{primary_role} focused on {primary_goal}",
+                "full_description": f"I am your personalized {primary_role}, here to guide you toward {primary_goal}. {intake_contract.get('notes', '')}",
+                "character_role": primary_role,
+                "mission": f"Help you achieve: {', '.join(normalized_goals)}",
+                "interaction_style": ", ".join(interaction_styles)
+            },
+            "traits": calculated_traits.model_dump(),  # Use AI-calculated traits
+            "configuration": {
+                "llm_provider": "openai",
+                "llm_model": "gpt-4o-mini",
+                "max_tokens": 800,
+                "temperature": 0.7,
+                "memory_enabled": True,
+                "voice_enabled": True,
+                "tools_enabled": False,
+                "memory_k": 6,
+                "thread_window": 20
+            },
+            "voice": {
+                "provider": "elevenlabs",
+                "voice_id": "21m00Tcm4TlvDq8ikWAM",  # Default: Rachel (calm)
+                "language": "en-US",
+                "stability": 0.75,
+                "similarity_boost": 0.75
+            },
+            "tags": [session_type, tone, primary_role]
+        }
+
+        # Build AgentContract
+        from models.agent import AgentContract, AgentIdentity, AgentTraits, AgentConfiguration, VoiceConfiguration, AgentMetadata, AgentStatus, AgentType
+
+        contract = AgentContract(
+            name=guide_contract_dict["name"],
+            type=AgentType.CONVERSATIONAL,
+            identity=AgentIdentity(**guide_contract_dict["identity"]),
+            traits=calculated_traits,  # Use AI-calculated traits directly
+            configuration=AgentConfiguration(**guide_contract_dict["configuration"]),
+            voice=VoiceConfiguration(**guide_contract_dict["voice"]),
+            metadata=AgentMetadata(
+                tenant_id=tenant_id,
+                owner_id=user_id,
+                tags=guide_contract_dict["tags"],
+                status=AgentStatus.ACTIVE
+            )
+        )
+
+        # 2. Create Agent
+        agent = await agent_service.create_agent(contract, tenant_id, user_id)
+        agent_id = agent["id"]
+
+        logger.info(f"✅ Guide created: {agent_id}")
+
+        # 3. Auto-create Session
+        session_id = str(uuid_lib.uuid4())
+        from database import get_pg_pool
+        pool = get_pg_pool()
+
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO sessions (id, user_id, agent_id, tenant_id, status, session_data, created_at, updated_at)
+                VALUES ($1, $2, $3::uuid, $4::uuid, 'active', $5, NOW(), NOW())
+            """,
+                session_id,
+                user_id,
+                agent_id,
+                tenant_id,
+                json.dumps({"intake_data": intake_contract})
+            )
+
+        logger.info(f"✅ Session created: {session_id}")
+
+        # 4. Immediately generate Manifestation Protocol
+        protocol_agent = ManifestationProtocolAgent()
+
+        protocol = await protocol_agent.generate_protocol({
+            "user_id": user_id,
+            "goal": normalized_goals[0] if normalized_goals else "Personal growth",
+            "timeframe": "30_days",
+            "commitment_level": "moderate"
+        })
+
+        logger.info(f"✅ Protocol generated for session: {session_id}")
+
+        # 5. Update session with protocol
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE sessions
+                SET session_data = jsonb_set(
+                    session_data,
+                    '{manifestation_protocol}',
+                    $1::jsonb
+                )
+                WHERE id = $2::uuid
+            """, json.dumps(protocol), session_id)
+
+        # 6. Store protocol in memory (non-blocking)
+        try:
+            from services.memory_manager import MemoryManager
+            memory_manager = MemoryManager()
+            await memory_manager.initialize()
+
+            # Summarize and store protocol
+            protocol_summary = f"Generated manifestation protocol with {len(protocol.get('affirmations', {}).get('all', []))} affirmations, {len(protocol.get('daily_practices', []))} practices, {len(protocol.get('checkpoints', []))} checkpoints."
+
+            await memory_manager.summarize_and_store(
+                session_id=session_id,
+                text=protocol_summary
+            )
+
+            # Store key protocol facts in semantic memory
+            protocol_facts = f"User goals: {', '.join(normalized_goals)}. Manifestation protocol includes affirmations, daily practices, and progress checkpoints."
+
+            await memory_manager.embed_and_upsert(
+                user_id=user_id,
+                agent_id=agent_id,
+                session_id=session_id,
+                content=protocol_facts,
+                meta={"type": "protocol", "session_id": session_id}
+            )
+
+            logger.debug("Stored protocol in memory")
+        except Exception as mem_error:
+            logger.warning(f"Failed to store protocol in memory: {mem_error}")
+            # Non-blocking - continue
+
+        logger.info(f"🎉 Baseline flow complete: agent={agent_id}, session={session_id}")
+
+        return {
+            "agent": agent,
+            "session": {
+                "id": session_id,
+                "agent_id": agent_id,
+                "user_id": user_id,
+                "status": "active"
+            },
+            "protocol": {
+                "affirmations_count": len(protocol.get("affirmations", {}).get("all", [])),
+                "daily_practices_count": len(protocol.get("daily_practices", [])),
+                "checkpoints_count": len(protocol.get("checkpoints", []))
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Baseline flow failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create guide from intake: {str(e)}")

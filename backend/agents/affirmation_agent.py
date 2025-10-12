@@ -27,7 +27,7 @@ from langchain.schema import SystemMessage, HumanMessage
 from pydantic import BaseModel, Field
 
 from models.agent import AgentContract
-from services.unified_memory_manager import UnifiedMemoryManager
+from services.memory_manager import MemoryManager
 from database import get_pg_pool
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ class AffirmationAgent:
     def __init__(
         self,
         contract: AgentContract,
-        memory: UnifiedMemoryManager
+        memory: MemoryManager
     ):
         """
         Initialize from contract (Agent Creation Standard)

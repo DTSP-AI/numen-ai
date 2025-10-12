@@ -83,7 +83,7 @@ export default function CreationPage() {
       setCurrentStepIndex(2)
       updateStepStatus(2, "processing")
 
-      const response = await fetch("http://localhost:8000/api/affirmations/generate", {
+      const response = await fetch("http://localhost:8003/api/affirmations/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

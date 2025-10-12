@@ -17,7 +17,7 @@ from pathlib import Path
 import uuid
 
 from models.agent import AgentContract, AgentResponse
-from services.unified_memory_manager import UnifiedMemoryManager
+from services.memory_manager import MemoryManager, initialize_agent_memory
 from database import get_pg_pool
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,102 @@ class AgentService:
     """Production agent service with complete lifecycle management"""
 
     def __init__(self):
-        self.memory_managers: Dict[str, UnifiedMemoryManager] = {}
+        self.memory_managers: Dict[str, MemoryManager] = {}
+
+    async def process_chat_message(
+        self,
+        agent_id: str,
+        session_id: str,
+        message: str,
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Process a chat message with the agent
+
+        Args:
+            agent_id: Agent ID
+            session_id: Session ID
+            message: User message
+            context: Session context
+
+        Returns:
+            Dict with response and metadata
+        """
+        try:
+            # Get or create memory manager for this agent
+            if agent_id not in self.memory_managers:
+                self.memory_managers[agent_id] = UnifiedMemoryManager(namespace=f"agent_{agent_id}")
+                await self.memory_managers[agent_id].initialize()
+
+            memory_manager = self.memory_managers[agent_id]
+
+            # Store user message in memory
+            await memory_manager.add_memory(
+                message=message,
+                metadata={
+                    "role": "user",
+                    "session_id": session_id,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            )
+
+            # Get conversation history
+            history = await memory_manager.get_conversation_history(limit=10)
+
+            # Simple response logic - in production, use LangGraph agent
+            response_text = self._generate_response(message, history, context)
+
+            # Store assistant response
+            await memory_manager.add_memory(
+                message=response_text,
+                metadata={
+                    "role": "assistant",
+                    "session_id": session_id,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            )
+
+            return {
+                "response": response_text,
+                "assets_created": False,
+                "context_updated": True
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to process chat message: {str(e)}")
+            return {
+                "response": "I apologize, but I'm having trouble processing your message right now. Please try again.",
+                "assets_created": False,
+                "error": str(e)
+            }
+
+    def _generate_response(
+        self,
+        message: str,
+        history: List[Dict[str, Any]],
+        context: Dict[str, Any]
+    ) -> str:
+        """
+        Generate a response to user message
+        This is a placeholder - in production, use the manifestation_protocol_agent
+        """
+        message_lower = message.lower()
+
+        # Intent detection
+        if any(word in message_lower for word in ["affirmation", "affirm", "statement"]):
+            return "I'd be happy to help you create powerful affirmations. What specific area of your life would you like to focus on? For example: career success, relationships, health, or abundance?"
+
+        elif any(word in message_lower for word in ["goal", "achieve", "want", "dream"]):
+            return "That's wonderful that you're setting clear intentions! Let's break down your goal into actionable steps. What's the first thing you can do today to move closer to this vision?"
+
+        elif any(word in message_lower for word in ["protocol", "plan", "strategy"]):
+            return "I can create a personalized manifestation protocol for you. This will include daily practices, visualizations, and success metrics. Would you like to start with a discovery session to understand your specific needs?"
+
+        elif any(word in message_lower for word in ["help", "how", "what"]):
+            return "I'm here to support your manifestation journey. I can help you:\n\n• Create personalized affirmations\n• Design a manifestation protocol\n• Track your progress\n• Provide guidance and accountability\n\nWhat would you like to explore first?"
+
+        else:
+            return f"I hear you. Manifestation is about aligning your thoughts, feelings, and actions with your desired reality. How can I support you in manifesting what you truly desire?"
 
     async def create_agent(
         self,
@@ -118,9 +213,20 @@ class AgentService:
     async def get_agent(
         self,
         agent_id: str,
-        tenant_id: str
+        tenant_id: str,
+        validate_sync: bool = False
     ) -> Optional[Dict[str, Any]]:
-        """Get agent by ID with tenant validation"""
+        """
+        Get agent by ID with tenant validation
+
+        Args:
+            agent_id: Agent UUID
+            tenant_id: Tenant UUID
+            validate_sync: If True, validate filesystem-database sync
+
+        Returns:
+            Agent data or None if not found
+        """
         pool = get_pg_pool()
 
         try:
@@ -139,7 +245,7 @@ class AgentService:
                 if not row:
                     return None
 
-                return {
+                agent_data = {
                     "id": str(row["id"]),
                     "tenant_id": str(row["tenant_id"]),
                     "owner_id": str(row["owner_id"]),
@@ -153,6 +259,14 @@ class AgentService:
                     "created_at": row["created_at"].isoformat(),
                     "updated_at": row["updated_at"].isoformat()
                 }
+
+                # Optional: Validate filesystem sync
+                if validate_sync:
+                    from services.contract_validator import validate_agent_sync
+                    sync_result = await validate_agent_sync(agent_id, auto_repair=True)
+                    agent_data["_sync_validation"] = sync_result
+
+                return agent_data
 
         except Exception as e:
             logger.error(f"Failed to get agent: {str(e)}")
@@ -364,8 +478,31 @@ class AgentService:
                 user_id=user_id
             )
 
-            # 5. Build response (simple echo for now - will integrate LangGraph)
-            response_text = f"[{contract.name}]: Received your message: {user_input}"
+            # 5. Build and invoke LangGraph agent
+            from agents.langgraph_agent import build_agent_graph
+
+            # Generate system prompt with trait modulation
+            system_prompt = self._generate_system_prompt(contract)
+
+            # Build agent graph
+            graph = build_agent_graph(memory_manager, contract)
+
+            # Invoke agent
+            graph_state = {
+                "agent_id": agent_id,
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "thread_id": thread_id,
+                "input_text": user_input,
+                "agent_contract": contract.model_dump(),
+                "system_prompt": system_prompt,
+                "memory_context": memory_context,
+                "traits": contract.traits.model_dump(),
+                "configuration": contract.configuration.model_dump()
+            }
+
+            result = await graph.ainvoke(graph_state)
+            response_text = result["response_text"]
 
             # 6. Store messages
             async with pool.acquire() as conn:
@@ -433,30 +570,21 @@ class AgentService:
         tenant_id: str,
         contract: AgentContract
     ):
-        """Initialize memory namespace for new agent"""
+        """Initialize memory namespace for new agent using Mem0"""
         try:
-            memory_manager = UnifiedMemoryManager(
-                tenant_id=tenant_id,
+            # Initialize using Mem0-based MemoryManager
+            memory_manager = await initialize_agent_memory(
                 agent_id=agent_id,
-                agent_traits=contract.model_dump()
+                tenant_id=tenant_id,
+                agent_contract=contract.model_dump()
             )
 
-            # Add initial system memory
-            await memory_manager.add_memory(
-                content=f"Agent '{contract.name}' initialized with identity: {contract.identity.short_description}",
-                memory_type="system",
-                metadata={
-                    "agent_id": agent_id,
-                    "agent_name": contract.name,
-                    "initialization_time": datetime.utcnow().isoformat()
-                }
-            )
-
-            logger.info(f"✅ Memory initialized for agent: {agent_id}")
+            logger.info(f"✅ Mem0 memory initialized for agent: {agent_id}")
 
         except Exception as e:
-            logger.error(f"Memory initialization failed: {str(e)}")
-            raise
+            logger.error(f"Mem0 memory initialization failed: {str(e)}")
+            # Non-critical - agent can still function without memory
+            logger.warning("Agent created without memory - continuing")
 
     async def _save_contract_file(
         self,
@@ -487,11 +615,19 @@ class AgentService:
             raise
 
     def _generate_system_prompt(self, contract: AgentContract) -> str:
-        """Generate system prompt from agent contract"""
+        """Generate system prompt from agent contract with trait-based behavioral directives"""
+        from services.trait_modulator import TraitModulator
+
+        modulator = TraitModulator()
+
         traits_desc = "\n".join([
             f"- {trait.replace('_', ' ').title()}: {value}/100"
             for trait, value in contract.traits.model_dump().items()
         ])
+
+        # Generate specific behavioral instructions from traits
+        behavior_instructions = modulator.generate_behavior_instructions(contract.traits)
+        trait_summary = modulator.get_trait_summary(contract.traits)
 
         return f"""You are {contract.name}.
 
@@ -501,14 +637,18 @@ CHARACTER ROLE: {contract.identity.character_role}
 MISSION: {contract.identity.mission}
 INTERACTION STYLE: {contract.identity.interaction_style}
 
-PERSONALITY TRAITS:
+PERSONALITY TRAITS (Quantified):
 {traits_desc}
 
-BEHAVIOR GUIDANCE:
+{trait_summary}
+
+{behavior_instructions}
+
+CORE DIRECTIVES:
 - Embody the character role in every interaction
 - Align all responses with your mission
-- Use the specified interaction style consistently
-- Modulate your personality based on the trait values above
+- Follow the behavioral directives above PRECISELY
+- Your personality is defined by the trait instructions - not by generic LLM behavior
 
 CONFIGURATION:
 - Model: {contract.configuration.llm_model}
@@ -547,15 +687,15 @@ CONFIGURATION:
         agent_id: str,
         tenant_id: str,
         contract: Dict[str, Any]
-    ) -> UnifiedMemoryManager:
-        """Get or create memory manager for agent"""
+    ) -> MemoryManager:
+        """Get or create Mem0-based memory manager for agent"""
         key = f"{tenant_id}:{agent_id}"
 
         if key not in self.memory_managers:
-            self.memory_managers[key] = UnifiedMemoryManager(
+            self.memory_managers[key] = MemoryManager(
                 tenant_id=tenant_id,
                 agent_id=agent_id,
-                agent_traits=contract
+                agent_traits=contract.get("traits", {})
             )
 
         return self.memory_managers[key]

@@ -53,7 +53,7 @@ export function ChatInterface({
     if (!sessionId) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/chat/sessions/${sessionId}/messages`)
+      const response = await fetch(`http://localhost:8003/api/chat/sessions/${sessionId}/messages`)
       if (response.ok) {
         const data = await response.json()
         setMessages(data.messages || [])
@@ -81,7 +81,7 @@ export function ChatInterface({
 
     try {
       // Send message to backend
-      const response = await fetch(`http://localhost:8000/api/chat/sessions/${sessionId}/messages`, {
+      const response = await fetch(`http://localhost:8003/api/chat/sessions/${sessionId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

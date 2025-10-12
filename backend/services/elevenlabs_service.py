@@ -147,33 +147,76 @@ class ElevenLabsService:
             logger.error(f"Failed to generate speech with voice {voice_id}: {e}")
             raise
 
-    def get_available_voices(self) -> List[Dict[str, Any]]:
+    def get_available_voices(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Fetch available voices from ElevenLabs API.
         Returns list of voice objects with metadata.
+        Filters to show only system voices + user-owned custom voices.
         """
         try:
             # Fetch voices from ElevenLabs SDK
             voices_response = self.client.voices.get_all()
 
-            # Convert to list of dicts with relevant fields
+            # Filter: show only system voices + user-owned custom voices
             voices_list = []
             for voice in voices_response.voices:
-                voice_dict = {
-                    "id": voice.voice_id,
-                    "name": voice.name,
-                    "category": voice.category if hasattr(voice, 'category') else "general",
-                    "description": voice.description if hasattr(voice, 'description') else "",
-                    "labels": voice.labels if hasattr(voice, 'labels') else {},
-                    "preview_url": voice.preview_url if hasattr(voice, 'preview_url') else None,
-                }
-                voices_list.append(voice_dict)
+                labels = voice.labels if hasattr(voice, 'labels') else {}
+                owner = labels.get("owner_id") if isinstance(labels, dict) else None
 
-            logger.info(f"Fetched {len(voices_list)} voices from ElevenLabs")
+                # Include if: no owner (system voice) OR owner matches user_id
+                if not owner or owner == user_id:
+                    voice_dict = {
+                        "id": voice.voice_id,
+                        "name": voice.name,
+                        "category": voice.category if hasattr(voice, 'category') else "general",
+                        "description": voice.description if hasattr(voice, 'description') else "",
+                        "labels": labels,
+                        "preview_url": voice.preview_url if hasattr(voice, 'preview_url') else None,
+                    }
+                    voices_list.append(voice_dict)
+
+            logger.info(f"Fetched {len(voices_list)} voices from ElevenLabs (filtered for user_id={user_id})")
             return voices_list
 
         except Exception as e:
             logger.error(f"Failed to fetch voices from ElevenLabs: {e}")
+            raise
+
+    async def create_voice(
+        self,
+        name: str,
+        files: list,
+        user_id: str,
+        description: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Create new ElevenLabs voice tied to a specific user.
+        """
+        try:
+            # Prepare file objects for ElevenLabs API
+            file_objects = [f.file for f in files]
+
+            # Create voice (labels parameter may not be supported in this SDK version)
+            # Store user_id in description instead for tracking
+            full_description = f"{description or 'User-created voice'} [owner:{user_id}]"
+
+            new_voice = self.client.voices.add(
+                name=name,
+                files=file_objects,
+                description=full_description
+            )
+
+            logger.info(f"Created voice '{name}' for user {user_id}: {new_voice.voice_id}")
+
+            return {
+                "voice_id": new_voice.voice_id,
+                "name": new_voice.name,
+                "description": new_voice.description if hasattr(new_voice, 'description') else description,
+                "category": new_voice.category if hasattr(new_voice, 'category') else "custom",
+            }
+
+        except Exception as e:
+            logger.error(f"Voice creation failed for user {user_id}: {e}")
             raise
 
 

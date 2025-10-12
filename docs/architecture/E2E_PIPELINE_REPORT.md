@@ -1348,3 +1348,50 @@ Intake → Agent (with Voice) → Session → AI Protocol Generation → Affirma
    - Mobile-optimized audio player
    - Push notification setup
    - Offline affirmation playback
+
+---
+
+## COMPREHENSIVE E2E INTEGRATION AUDIT (October 2, 2025)
+
+**Production Readiness: CONDITIONAL GO**
+**Integration Score: 72/100**
+
+See full audit report: `docs/architecture/AUDIT_REPORT.md`
+
+### Critical Bugs Requiring Immediate Fix
+
+1. **AgentBuilder Undefined Variables** (HIGH)
+   - File: `frontend/src/components/AgentBuilder.tsx` lines 302, 918
+   - Impact: Agent creation fails
+   - Fix: Add state variables for `maxTokens`, `temperature`, use `selectedRoles[0]` for character_role
+
+2. **Audio Service Not Instantiated** (CRITICAL)
+   - File: `backend/routers/affirmations.py` line 15
+   - Impact: Audio synthesis completely broken
+   - Fix: `audio_service = AudioService()` after import
+
+3. **Directory Creation Race Condition** (HIGH)
+   - File: `backend/main.py` lines 84-91
+   - Impact: Static file serving fails
+   - Fix: Create directories BEFORE app.mount() calls
+
+4. **Discovery Complete Callback** (HIGH)
+   - File: `frontend/src/components/DiscoveryQuestions.tsx` line 89
+   - Impact: User never sees generated protocol
+   - Fix: Pass results to parent instead of triggering reload
+
+### Deployment Checklist
+
+**Phase 1 (REQUIRED - 2-3 days):**
+- [ ] Fix 4 critical bugs above
+- [ ] Add API key validation on startup
+- [ ] Add error boundaries
+- [ ] Add OpenAI timeout handling
+
+**Phase 2 (REQUIRED - 1 week):**
+- [ ] Implement authentication
+- [ ] Add rate limiting
+- [ ] Add comprehensive logging
+- [ ] Implement HTTPS
+
+**With Phase 1 Complete: GO FOR MVP**

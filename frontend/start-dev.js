@@ -3,7 +3,7 @@
 const { execSync, spawn } = require('child_process');
 const net = require('net');
 
-const PREFERRED_PORTS = [3002, 3003];
+const PREFERRED_PORTS = [3003, 3004];
 
 /**
  * Check if a port is in use

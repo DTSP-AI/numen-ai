@@ -21,7 +21,7 @@ interface Props {
 export function ScriptPlayer({ script }: Props) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [audio] = useState(() => typeof Audio !== "undefined" && script.audio_url ? new Audio(`http://localhost:8000${script.audio_url}`) : null)
+  const [audio] = useState(() => typeof Audio !== "undefined" && script.audio_url ? new Audio(`http://localhost:8003${script.audio_url}`) : null)
 
   const handlePlay = () => {
     if (!audio) return
@@ -39,7 +39,7 @@ export function ScriptPlayer({ script }: Props) {
 
   const handleSynthesize = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/scripts/${script.id}/synthesize`, {
+      const response = await fetch(`http://localhost:8003/api/scripts/${script.id}/synthesize`, {
         method: "POST"
       })
 

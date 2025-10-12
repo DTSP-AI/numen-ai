@@ -8,7 +8,7 @@ from database import get_pg_pool
 from services.livekit_service import LiveKitService, LiveKitAgent
 from services.deepgram_service import DeepgramService
 from services.elevenlabs_service import ElevenLabsService
-from services.memory import MemoryService
+from services.memory_manager import MemoryManager
 from agents.intake_agent import IntakeAgent
 from agents.therapy_agent import TherapyAgent
 from models.schemas import ContractResponse
@@ -19,7 +19,7 @@ router = APIRouter()
 livekit_service = LiveKitService()
 deepgram_service = DeepgramService()
 elevenlabs_service = ElevenLabsService()
-memory_service = MemoryService()
+# memory_service = MemoryService()  # TODO: Update to use MemoryManager
 intake_agent = IntakeAgent()
 therapy_agent = TherapyAgent()
 

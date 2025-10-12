@@ -17,11 +17,18 @@ import { PlanReview } from "@/components/PlanReview"
 interface Agent {
   id: string
   name: string
+  type: string
+  interaction_count: number
+  last_interaction_at: string | null
+  created_at: string
   [key: string]: unknown
 }
 
 interface ScheduleItem {
   id: string
+  scheduled_at: string
+  recurrence: string | null
+  notification_sent: boolean
   [key: string]: unknown
 }
 
@@ -92,7 +99,7 @@ export default function DashboardPage() {
       if (!sessionId) return
 
       try {
-        const response = await fetch(`http://localhost:8000/api/sessions/${sessionId}`)
+        const response = await fetch(`http://localhost:8003/api/sessions/${sessionId}`)
         const data = await response.json()
 
         // If affirmations exist but no consent, show plan review
@@ -114,17 +121,17 @@ export default function DashboardPage() {
       setLoading(true)
 
       // Load dashboard summary
-      const dashboardRes = await fetch(`http://localhost:8000/api/dashboard/user/${userId}`)
+      const dashboardRes = await fetch(`http://localhost:8003/api/dashboard/user/${userId}`)
       const dashboardData = await dashboardRes.json()
       setDashboardData(dashboardData)
 
       // Load affirmations
-      const affirmationsRes = await fetch(`http://localhost:8000/api/affirmations/user/${userId}`)
+      const affirmationsRes = await fetch(`http://localhost:8003/api/affirmations/user/${userId}`)
       const affirmationsData = await affirmationsRes.json()
       setAffirmations(affirmationsData.affirmations || [])
 
       // Load scripts
-      const scriptsRes = await fetch(`http://localhost:8000/api/scripts/user/${userId}`)
+      const scriptsRes = await fetch(`http://localhost:8003/api/scripts/user/${userId}`)
       const scriptsData = await scriptsRes.json()
       setScripts(scriptsData.scripts || [])
 
@@ -135,9 +142,15 @@ export default function DashboardPage() {
     }
   }
 
-  const handleDiscoveryComplete = async () => {
+  const handleDiscoveryComplete = async (planResult?: any) => {
     setShowDiscovery(false)
     setShowMeetAgent(false)
+
+    // If plan result provided, log it for now (can be used to show protocol summary)
+    if (planResult) {
+      console.log("Discovery complete with plan:", planResult)
+    }
+
     await loadDashboard() // Reload to show generated affirmations
 
     // After affirmations generated, check if user needs to consent
@@ -150,7 +163,7 @@ export default function DashboardPage() {
     if (!sessionId) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/sessions/${sessionId}`)
+      const response = await fetch(`http://localhost:8003/api/sessions/${sessionId}`)
       const data = await response.json()
 
       // If affirmations exist but no consent, show plan review

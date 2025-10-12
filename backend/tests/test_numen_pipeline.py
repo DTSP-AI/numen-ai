@@ -33,7 +33,7 @@ from models.agent import (
 from agents.intake_agent_v2 import IntakeAgentV2, IntakeAgentState, DiscoveryData
 from agents.affirmation_agent import AffirmationAgent
 from services.agent_service import AgentService
-from services.unified_memory_manager import UnifiedMemoryManager
+from services.memory_manager import MemoryManager
 from services.audio_synthesis import audio_service
 from database import init_db, close_db, get_pg_pool
 
@@ -120,7 +120,7 @@ async def test_2_simulate_intake_conversation(intake_agent_data):
 
     # Initialize IntakeAgentV2
     contract = AgentContract(**intake_agent_data['contract'])
-    memory = UnifiedMemoryManager(
+    memory = MemoryManager(
         tenant_id=tenant_id,
         agent_id=agent_id,
         agent_traits=intake_agent_data['contract']
@@ -272,7 +272,7 @@ async def test_4_generate_content(affirmation_agent_data, user_id):
 
     # Initialize AffirmationAgent
     contract = AgentContract(**affirmation_agent_data['contract'])
-    memory = UnifiedMemoryManager(
+    memory = MemoryManager(
         tenant_id=tenant_id,
         agent_id=agent_id,
         agent_traits=affirmation_agent_data['contract']

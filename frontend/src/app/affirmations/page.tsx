@@ -30,7 +30,7 @@ export default function AffirmationsPage() {
 
   const loadAffirmations = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/affirmations/user/${userId}`)
+      const response = await fetch(`http://localhost:8003/api/affirmations/user/${userId}`)
       const data = await response.json()
       setAffirmations(data.affirmations || [])
     } catch (error) {

@@ -38,7 +38,7 @@ export function PlanReview({
   const handleAccept = async () => {
     setIsAccepting(true)
     try {
-      const response = await fetch(`http://localhost:8000/api/sessions/${sessionId}/consent`, {
+      const response = await fetch(`http://localhost:8003/api/sessions/${sessionId}/consent`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json"

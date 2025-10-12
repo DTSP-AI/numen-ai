@@ -108,3 +108,51 @@ class TherapyState(BaseModel):
     transcript: List[TranscriptEntry] = []
     reflections: List[str] = []
     completed: bool = False
+
+
+# Baseline Flow Models
+class UserGuideControls(BaseModel):
+    """4 user-facing guide customization controls (0-100 scale)"""
+    guide_energy: int = Field(default=50, ge=0, le=100, description="Calm (0) ↔ Energetic (100)")
+    coaching_style: int = Field(default=50, ge=0, le=100, description="Nurturing (0) ↔ Directive (100)")
+    creative_expression: int = Field(default=50, ge=0, le=100, description="Practical (0) ↔ Imaginative (100)")
+    communication_depth: int = Field(default=50, ge=0, le=100, description="Concise (0) ↔ Detailed (100)")
+
+
+class IntakeRequest(BaseModel):
+    """Request to process user intake"""
+    user_id: str
+    answers: dict  # {goals: list[str], tone: str, session_type: str}
+    guide_controls: Optional[UserGuideControls] = None  # Optional user customization
+
+
+class IntakeContract(BaseModel):
+    """Normalized contract from IntakeAgent"""
+    normalized_goals: List[str]
+    prefs: dict  # {tone: str, session_type: str}
+    notes: str = ""
+
+
+class GuideAttributes(BaseModel):
+    """4 core attributes for baseline"""
+    confidence: int = Field(default=70, ge=0, le=100)
+    empathy: int = Field(default=70, ge=0, le=100)
+    creativity: int = Field(default=50, ge=0, le=100)
+    discipline: int = Field(default=60, ge=0, le=100)
+
+
+class GuideContract(BaseModel):
+    """Guide agent contract from intake"""
+    identity: dict
+    roles: List[str]
+    interaction_styles: List[str]
+    attributes: GuideAttributes
+    voice_id: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+class CreateFromIntakeResponse(BaseModel):
+    """Response from baseline agent creation"""
+    agent: dict
+    session: dict
+    protocol: dict

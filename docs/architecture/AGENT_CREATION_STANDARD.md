@@ -1,5 +1,7 @@
-# 🏗️ AGENT CREATION STANDARD - JSON Contract-First Architecture
-## Universal Blueprint for AI Agent Systems with Memory, State, and Database Management
+# 🏗 AGENT CREATION STANDARD
+## JSON Contract-First Architecture
+
+**Universal Blueprint for AI Agent Systems with Memory, State, and Database Management**
 
 ---
 
@@ -22,32 +24,32 @@
 
 ### Core Principles
 
-**1. JSON Contract-First Design**
-- Agent behavior is **100% defined by JSON configuration**
+#### 1. JSON Contract-First Design
+- Agent behavior is 100% defined by JSON configuration
 - No hardcoded personality or behavior in code
 - Runtime trait adjustment without code changes
 - Single source of truth for agent identity
 
-**2. Separation of Concerns**
+#### 2. Separation of Concerns
 ```
 JSON Contract (What) → Agent Logic (How) → Execution (When/Where)
-    ↓                      ↓                      ↓
-Configuration          Business Logic         Runtime
+         ↓                      ↓                    ↓
+  Configuration         Business Logic          Runtime
 ```
 
-**3. Memory as First-Class Citizen**
+#### 3. Memory as First-Class Citizen
 - Every agent has persistent memory from inception
 - Memory namespace isolation per tenant/agent
 - Thread management is automatic, not manual
 - Context retrieval is always memory-aware
 
-**4. Database-Backed Agent Management**
+#### 4. Database-Backed Agent Management
 - Agents are database entities with full CRUD lifecycle
 - JSON contracts stored in database and filesystem
 - Audit trail for all agent modifications
 - Multi-tenancy by design
 
-**5. Universal Applicability**
+#### 5. Universal Applicability
 - Works for chatbots, voice agents, workflow agents, autonomous agents
 - Scales from single agent to thousands
 - Cloud-agnostic (Azure, AWS, GCP)
@@ -61,7 +63,8 @@ Configuration          Business Logic         Runtime
 
 Every agent begins with a JSON contract that defines its complete identity and behavior.
 
-#### **Minimal Contract Structure**
+#### Minimal Contract Structure
+
 ```json
 {
   "id": "uuid-v4-generated",
@@ -117,7 +120,8 @@ Every agent begins with a JSON contract that defines its complete identity and b
 }
 ```
 
-#### **Extended Contract for Voice Agents**
+#### Extended Contract for Voice Agents
+
 ```json
 {
   "voice": {
@@ -129,7 +133,6 @@ Every agent begins with a JSON contract that defines its complete identity and b
     "stability": 0.75,
     "similarity_boost": 0.75
   },
-
   "speech": {
     "stt_provider": "deepgram|azure|whisper",
     "stt_model": "nova-2",
@@ -140,7 +143,8 @@ Every agent begins with a JSON contract that defines its complete identity and b
 }
 ```
 
-#### **Extended Contract for Workflow Agents**
+#### Extended Contract for Workflow Agents
+
 ```json
 {
   "workflow": {
@@ -156,7 +160,8 @@ Every agent begins with a JSON contract that defines its complete identity and b
 }
 ```
 
-#### **Human_Prompt Integration (Universal AI Denial)**
+#### Human_Prompt Integration (Universal AI Denial)
+
 ```json
 {
   "behavioral_directives": {
@@ -188,9 +193,10 @@ graph TD
     I --> J[Return Agent Object]
 ```
 
-#### **Step-by-Step Creation Process**
+### Step-by-Step Creation Process
 
-**Step 1: Schema Validation**
+#### Step 1: Schema Validation
+
 ```python
 from pydantic import BaseModel, Field, validator
 from typing import Dict, Any, List, Optional
@@ -231,11 +237,9 @@ class AgentContract(BaseModel):
     version: str = "1.0.0"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
     identity: AgentIdentity
     traits: AgentTraits = AgentTraits()
     configuration: AgentConfiguration = AgentConfiguration()
-
     metadata: Dict[str, Any] = {}
 
     @validator('type')
@@ -246,9 +250,10 @@ class AgentContract(BaseModel):
         return v
 ```
 
-**Step 2: Database Record Creation**
+#### Step 2: Database Record Creation
+
 ```python
-from sqlalchemy import Column, String, JSON, DateTime, Boolean, Text
+from sqlalchemy import Column, String, JSON, DateTime, Boolean, Text, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -300,7 +305,6 @@ async def create_agent(contract: AgentContract, tenant_id: str, owner_id: str) -
         interaction_count=0
     )
 
-    # Add to database session
     db.add(agent)
     await db.commit()
     await db.refresh(agent)
@@ -308,34 +312,45 @@ async def create_agent(contract: AgentContract, tenant_id: str, owner_id: str) -
     return agent
 ```
 
-**Step 3: Memory Namespace Initialization**
+#### Step 3: Memory Namespace Initialization
+
 ```python
-from memory.unified_memory_manager import UnifiedMemoryManager
+"""
+We have replaced the legacy `UnifiedMemoryManager` (which relied on a local
+vector store and multiple weighting parameters) with a simplified
+`MemoryManager` built on top of the Mem0 long‑term memory service. This
+manager persists all agent interactions in Mem0 and retrieves relevant
+context via semantic search, removing the need for a local FAISS store.
+"""
+
+from memory.manager import MemoryManager  # custom Mem0-based memory manager
 
 async def initialize_agent_memory(
     agent_id: str,
     tenant_id: str,
     agent_traits: Dict[str, Any]
-) -> UnifiedMemoryManager:
-    """Initialize memory namespace for new agent"""
+) -> MemoryManager:
+    """Initialize memory namespace for a new agent using Mem0"""
 
     # Create memory manager with namespace
-    memory_manager = UnifiedMemoryManager(
+    memory_manager = MemoryManager(
         tenant_id=tenant_id,
         agent_id=agent_id,
         agent_traits=agent_traits
     )
 
-    # Create initial system memory entry
-    await memory_manager._add_to_persistent_memory(
-        "system",
-        f"Agent {agent_traits['name']} created with identity: {agent_traits['identity']}"
+    # Create initial system memory entry in Mem0
+    await memory_manager.store_interaction(
+        role="system",
+        content=f"Agent {agent_traits['name']} created with identity: {agent_traits['identity']}",
+        session_id="system"
     )
 
     return memory_manager
 ```
 
-**Step 4: Filesystem JSON Storage**
+#### Step 4: Filesystem JSON Storage
+
 ```python
 import json
 from pathlib import Path
@@ -363,7 +378,8 @@ async def save_agent_contract(agent_id: str, contract: AgentContract):
         }, f, indent=2)
 ```
 
-**Step 5: Complete Creation API**
+#### Step 5: Complete Creation API
+
 ```python
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
@@ -388,7 +404,6 @@ async def create_agent_endpoint(
     5. Create default thread
     6. Return agent object
     """
-
     try:
         # Step 1: Validation (automatic via Pydantic)
 
@@ -425,7 +440,7 @@ async def create_agent_endpoint(
 
 ### Memory Namespace Design
 
-**Namespace Pattern**: `{tenant_id}:{agent_id}:{context_type}`
+**Namespace Pattern:** `{tenant_id}:{agent_id}:{context_type}`
 
 ```python
 class MemoryNamespace:
@@ -456,51 +471,30 @@ async def initialize_memory_system(
     agent_contract: AgentContract
 ) -> Dict[str, Any]:
     """
-    Initialize complete memory system for new agent
+    Initialize the Mem0-based memory system for a new agent.
 
     Creates:
-    - Agent memory namespace
-    - Default thread
-    - Memory settings from contract
-    - Initial system memories
+    - Agent memory namespace in Mem0
+    - Default thread (handled separately)
+    - Stores an initial system memory message
     """
 
-    # Extract memory settings from contract
-    memory_settings = MemorySettings(
-        k=agent_contract.configuration.get('memory_k', 6),
-        thread_window=agent_contract.configuration.get('thread_window', 20),
-        alpha_recency=0.35,
-        alpha_semantic=0.45,
-        alpha_reinforcement=0.20
-    )
-
-    # Create unified memory manager
-    memory_manager = UnifiedMemoryManager(
+    # Create the Mem0-based memory manager without local vector store
+    memory_manager = MemoryManager(
         tenant_id=tenant_id,
         agent_id=agent_id,
-        agent_traits=agent_contract.model_dump(),
-        settings=memory_settings
+        agent_traits=agent_contract.model_dump()
     )
 
-    # Add initial system memory
-    system_memory = {
-        "type": "system_initialization",
-        "timestamp": datetime.utcnow().isoformat(),
-        "content": f"Agent '{agent_contract.name}' initialized",
-        "metadata": {
-            "identity": agent_contract.identity.model_dump(),
-            "traits": agent_contract.traits.model_dump()
-        }
-    }
-
-    await memory_manager._add_to_persistent_memory(
-        "system",
-        json.dumps(system_memory)
+    # Add initial system memory message to Mem0
+    await memory_manager.store_interaction(
+        role="system",
+        content=f"Agent '{agent_contract.name}' initialized",
+        session_id="system"
     )
 
     return {
         "namespace": memory_manager.namespace,
-        "settings": memory_settings.model_dump(),
         "initialized_at": datetime.utcnow().isoformat()
     }
 ```
@@ -508,6 +502,56 @@ async def initialize_memory_system(
 ---
 
 ## Thread Management
+
+### Mem0-Based Memory Manager Implementation
+
+To simplify memory storage and retrieval, we implement a `MemoryManager` that delegates all persistence and search operations to Mem0, a managed cloud memory service. Unlike the earlier `UnifiedMemoryManager` which combined a local FAISS vector store with multiple weighting parameters, this manager uses Mem0's built‑in semantic search and persistent storage to keep the agent's long‑term context.
+
+```python
+from typing import Any, Dict
+import os
+from mem0 import AsyncMem0Client  # hypothetical Mem0 async client
+
+class MemoryManager:
+    """Mem0-backed memory manager for agents"""
+
+    def __init__(self, tenant_id: str, agent_id: str, agent_traits: Dict[str, Any]):
+        self.tenant_id = tenant_id
+        self.agent_id = agent_id
+        self.agent_traits = agent_traits
+        self.namespace = f"{tenant_id}:{agent_id}"
+
+        # Initialize Mem0 client (API key supplied via environment variable)
+        self.client = AsyncMem0Client(api_key=os.environ["MEM0_API_KEY"])
+
+    async def store_interaction(self, role: str, content: str, session_id: str):
+        """Persist a message to Mem0 for later retrieval"""
+        await self.client.store(
+            namespace=self.namespace,
+            session_id=session_id,
+            role=role,
+            content=content,
+            metadata={"traits": self.agent_traits}
+        )
+
+    async def get_agent_context(self, user_input: str, session_id: str, k: int = 5) -> Dict[str, Any]:
+        """Retrieve the top-k most relevant past interactions using Mem0 search"""
+        results = await self.client.search(
+            namespace=self.namespace,
+            query=user_input,
+            session_id=session_id,
+            limit=k
+        )
+
+        # Extract memory content and compute an average relevance score
+        memories = [r["content"] for r in results]
+        avg_score = sum(r["score"] for r in results) / max(len(results), 1)
+
+        return {
+            "memories": memories,
+            "confidence_score": avg_score
+        }
+```
 
 ### Thread Lifecycle
 
@@ -601,7 +645,6 @@ class ThreadManager:
         title: Optional[str] = None
     ) -> Thread:
         """Create new conversation thread"""
-
         thread = Thread(
             agent_id=agent_id,
             user_id=user_id,
@@ -627,7 +670,6 @@ class ThreadManager:
         thread_id: Optional[str] = None
     ) -> Thread:
         """Get existing thread or create new one"""
-
         if thread_id:
             thread = await self.db.query(Thread).filter(
                 Thread.id == thread_id,
@@ -650,7 +692,6 @@ class ThreadManager:
         metadata: Optional[Dict[str, Any]] = None
     ) -> ThreadMessage:
         """Add message to thread"""
-
         message = ThreadMessage(
             thread_id=thread_id,
             role=role,
@@ -678,7 +719,6 @@ class ThreadManager:
         limit: int = 20
     ) -> List[ThreadMessage]:
         """Get recent thread messages"""
-
         messages = await self.db.query(ThreadMessage).filter(
             ThreadMessage.thread_id == thread_id
         ).order_by(
@@ -829,8 +869,8 @@ async def process_agent_interaction(
 
     contract = AgentContract(**agent.contract)
 
-    # Step 3: Initialize memory manager
-    memory_manager = UnifiedMemoryManager(
+    # Step 3: Initialize memory manager using the Mem0-based implementation
+    memory_manager = MemoryManager(
         tenant_id=tenant_id,
         agent_id=agent_id,
         agent_traits=contract.model_dump()
@@ -873,14 +913,20 @@ async def process_agent_interaction(
         content=result["response_text"],
         metadata={
             "workflow_status": result.get("workflow_status"),
-            "confidence": memory_context.confidence_score
+            "confidence": memory_context["confidence_score"]
         }
     )
 
-    # Process interaction through memory
-    await memory_manager.process_interaction(
-        user_input=user_input,
-        agent_response=result["response_text"],
+    # Store interaction in Mem0 for long‑term memory
+    await memory_manager.store_interaction(
+        role="user",
+        content=user_input,
+        session_id=str(thread.id)
+    )
+
+    await memory_manager.store_interaction(
+        role="assistant",
+        content=result["response_text"],
         session_id=str(thread.id)
     )
 
@@ -895,7 +941,7 @@ async def process_agent_interaction(
         "agent_id": agent_id,
         "response": result["response_text"],
         "metadata": {
-            "memory_confidence": memory_context.confidence_score,
+            "memory_confidence": memory_context["confidence_score"],
             "message_count": thread.message_count + 2,
             "workflow_status": result.get("workflow_status")
         }
@@ -923,7 +969,6 @@ async def agent_chat(
         "metadata": {}
     }
     """
-
     result = await process_agent_interaction(
         agent_id=agent_id,
         user_id=user_id,
@@ -942,7 +987,7 @@ async def agent_chat(
 
 ### Standard Implementation Steps
 
-#### **Phase 1: Database Setup (Day 1)**
+#### Phase 1: Database Setup (Day 1)
 
 1. **Create database schema**
    ```bash
@@ -957,7 +1002,7 @@ async def agent_chat(
    WHERE table_schema = 'public';
    ```
 
-#### **Phase 2: JSON Contract Definition (Day 1-2)**
+#### Phase 2: JSON Contract Definition (Day 1-2)
 
 1. **Define Pydantic models**
    - Create `models/agent.py` with contract classes
@@ -965,9 +1010,7 @@ async def agent_chat(
    - Test with sample data
 
 2. **Create JSON schema file**
-   ```json
-   backend/prompts/agent_schema.json
-   ```
+   - `backend/prompts/agent_schema.json`
 
 3. **Implement contract validation**
    ```python
@@ -979,35 +1022,35 @@ async def agent_chat(
        return {"errors": e.errors()}
    ```
 
-#### **Phase 3: Agent CRUD Operations (Day 2-3)**
+#### Phase 3: Agent CRUD Operations (Day 2-3)
 
 1. **Implement create endpoint**
-   - POST `/api/v1/agents`
+   - `POST /api/v1/agents`
    - Database insert
    - Memory initialization
    - File system storage
 
 2. **Implement read endpoints**
-   - GET `/api/v1/agents` (list)
-   - GET `/api/v1/agents/{id}` (detail)
+   - `GET /api/v1/agents` (list)
+   - `GET /api/v1/agents/{id}` (detail)
    - Filter by tenant, status, type
 
 3. **Implement update endpoint**
-   - PATCH `/api/v1/agents/{id}`
+   - `PATCH /api/v1/agents/{id}`
    - Version tracking
    - Contract validation
 
 4. **Implement delete endpoint**
-   - DELETE `/api/v1/agents/{id}`
+   - `DELETE /api/v1/agents/{id}`
    - Soft delete (status='archived')
    - Cascade considerations
 
-#### **Phase 4: Memory System Integration (Day 3-4)**
+#### Phase 4: Memory System Integration (Day 3-4)
 
-1. **Initialize UnifiedMemoryManager**
-   - Per-agent memory namespace
-   - Settings from contract
-   - Persistence verification
+1. **Initialize Mem0-based MemoryManager**
+   - Per-agent memory namespace stored in Mem0 (no local vector store)
+   - No complex weighting parameters; rely on Mem0's semantic search
+   - Verify that initial system message is persisted
 
 2. **Test memory operations**
    - Add messages
@@ -1019,7 +1062,7 @@ async def agent_chat(
    - Message storage
    - History retrieval
 
-#### **Phase 5: Agent Interaction Logic (Day 4-5)**
+#### Phase 5: Agent Interaction Logic (Day 4-5)
 
 1. **Implement LangGraph integration**
    - Build graph from contract
@@ -1036,7 +1079,7 @@ async def agent_chat(
    - Processing failures
    - Graceful degradation
 
-#### **Phase 6: Testing & Validation (Day 5-6)**
+#### Phase 6: Testing & Validation (Day 5-6)
 
 1. **Unit tests**
    - Contract validation
@@ -1062,6 +1105,7 @@ async def agent_chat(
 ```python
 """
 minimal_agent_app.py
+
 Minimal working agent application with JSON contract-first design
 """
 
@@ -1160,12 +1204,13 @@ if __name__ == "__main__":
 ```python
 """
 production_agent_service.py
+
 Production-ready agent service with full features
 """
 
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
-from memory.unified_memory_manager import UnifiedMemoryManager
+from memory.manager import MemoryManager  # Use the Mem0-based MemoryManager
 from agents.graph import build_graph
 import logging
 
@@ -1176,7 +1221,8 @@ class AgentService:
 
     def __init__(self, db: Session):
         self.db = db
-        self.memory_managers: Dict[str, UnifiedMemoryManager] = {}
+        # cache of Mem0-based memory managers keyed by "tenant_id:agent_id"
+        self.memory_managers: Dict[str, MemoryManager] = {}
 
     async def create_agent(
         self,
@@ -1309,9 +1355,22 @@ class AgentService:
             "memory_context": memory_context
         })
 
-        # Store messages
+        # Store messages in the thread history
         await self._store_interaction(
             thread.id, user_input, result["response_text"]
+        )
+
+        # Also persist the interaction in Mem0 via the memory manager
+        await memory_manager.store_interaction(
+            role="user",
+            content=user_input,
+            session_id=str(thread.id)
+        )
+
+        await memory_manager.store_interaction(
+            role="assistant",
+            content=result["response_text"],
+            session_id=str(thread.id)
         )
 
         # Update metrics
@@ -1323,7 +1382,7 @@ class AgentService:
             "thread_id": str(thread.id),
             "response": result["response_text"],
             "metadata": {
-                "confidence": memory_context.confidence_score,
+                "confidence": memory_context["confidence_score"],
                 "workflow_status": result.get("workflow_status")
             }
         }
@@ -1333,12 +1392,12 @@ class AgentService:
         agent_id: str,
         tenant_id: str,
         contract: Dict[str, Any]
-    ) -> UnifiedMemoryManager:
-        """Get or create memory manager for agent"""
+    ) -> MemoryManager:
+        """Get or create Mem0-based memory manager for agent"""
         key = f"{tenant_id}:{agent_id}"
 
         if key not in self.memory_managers:
-            self.memory_managers[key] = UnifiedMemoryManager(
+            self.memory_managers[key] = MemoryManager(
                 tenant_id=tenant_id,
                 agent_id=agent_id,
                 agent_traits=contract
@@ -1356,6 +1415,7 @@ class AgentService:
 ```python
 """
 tests/test_agent_lifecycle.py
+
 Complete agent lifecycle testing
 """
 
@@ -1481,7 +1541,7 @@ async def test_thread_persistence(db_session, sample_contract):
 
 ## Summary: The Agent Creation Standard
 
-### **10 Commandments of JSON Contract-First Agent Development**
+### 10 Commandments of JSON Contract-First Agent Development
 
 1. **JSON Contract is King**
    - All agent behavior defined in JSON
@@ -1529,20 +1589,20 @@ async def test_thread_persistence(db_session, sample_contract):
    - Thread persistence
 
 10. **Standard API Surface**
-    - POST /agents (create)
-    - GET /agents/{id} (read)
-    - PATCH /agents/{id} (update)
-    - POST /agents/{id}/chat (interact)
+    - `POST /agents` (create)
+    - `GET /agents/{id}` (read)
+    - `PATCH /agents/{id}` (update)
+    - `POST /agents/{id}/chat` (interact)
 
-### **Universal Application Pattern**
+### Universal Application Pattern
 
 ```
 Application Purpose → JSON Contract Design → Agent Creation → Memory Init → Interaction Loop
-        ↓                     ↓                    ↓              ↓              ↓
-   Customer Support      Define traits       Store in DB    Create namespace   Chat endpoint
-   Voice Assistant       Configure voice     Init memory    Setup threads      Voice pipeline
-   Workflow Agent        Set parameters      Save contract  Prepare context    Execute tasks
-   Autonomous Agent      Specify tools       Enable MCP     Load history       Tool execution
+         ↓                      ↓                   ↓              ↓              ↓
+  Customer Support      Define traits        Store in DB    Create namespace   Chat endpoint
+  Voice Assistant       Configure voice      Init memory    Setup threads      Voice pipeline
+  Workflow Agent        Set parameters       Save contract  Prepare context    Execute tasks
+  Autonomous Agent      Specify tools        Enable MCP     Load history       Tool execution
 ```
 
 This standard works for **ANY** AI agent application because it separates:
@@ -1555,8 +1615,9 @@ This standard works for **ANY** AI agent application because it separates:
 
 ---
 
-**END OF AGENT CREATION STANDARD**
+## END OF AGENT CREATION STANDARD
 
-Generated: January 2025
-Based on: OneShotVoiceAgent Production Implementation
-Validated: 96%+ functional implementation with unified memory system
+**Generated:** January 2025
+**Based on:** OneShotVoiceAgent Production Implementation
+**Validated:** 96%+ functional implementation with unified memory system
+ 

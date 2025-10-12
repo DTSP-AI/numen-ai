@@ -197,3 +197,56 @@ Does this look correct? If you'd like to make any changes, let me know!
             voice_id=state["voice_id"] or "default",
             session_type=SessionType(state["session_type"]) if state["session_type"] else SessionType.MANIFESTATION
         )
+
+    async def refine_text(self, raw: str) -> str:
+        """
+        Refine raw user input into structured, prompt-ready text.
+
+        Args:
+            raw: Raw user text input
+
+        Returns:
+            Improved, structured version of the text
+        """
+        if not raw or not raw.strip():
+            return raw
+
+        try:
+            # Use LLM to clean, clarify, and structure input
+            messages = [
+                SystemMessage(content="""You are an AI assistant helping users articulate their goals and intentions clearly.
+
+Your task:
+- Transform raw, casual input into clear, affirmative statements
+- Maintain the user's original intent and meaning
+- Make it positive and empowering
+- Keep it concise (1-2 sentences max)
+- Use first-person perspective when appropriate
+
+Examples:
+"i want be rich" → "I want to cultivate sustainable wealth and abundance."
+"need confidence" → "I want to build genuine confidence and self-assurance."
+"stop anxiety attacks" → "I seek to develop calm, grounded emotional regulation."
+"""),
+                HumanMessage(content=f"Refine this input: {raw}")
+            ]
+
+            response = await self.llm.ainvoke(messages)
+            refined = response.content.strip()
+
+            # Ensure we got a valid response
+            if refined and len(refined) > 3:
+                logger.info(f"IntakeAgent: Refined '{raw[:50]}...' → '{refined[:50]}...'")
+                return refined
+            else:
+                raise ValueError("Empty or invalid LLM response")
+
+        except Exception as e:
+            logger.warning(f"IntakeAgent: LLM refinement failed ({str(e)}), using fallback")
+            # Fallback: capitalize first letter and ensure complete sentence
+            fallback = raw.strip()
+            if fallback:
+                fallback = fallback[0].upper() + fallback[1:]
+                if not fallback.endswith('.'):
+                    fallback += '.'
+            return fallback

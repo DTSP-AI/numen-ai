@@ -57,21 +57,21 @@ export default function ChatPage() {
       setLoading(true)
 
       // Load agent
-      const agentRes = await fetch(`http://localhost:8000/api/agents/${agentId}`)
+      const agentRes = await fetch(`http://localhost:8003/api/agents/${agentId}`)
       if (agentRes.ok) {
         const agentData = await agentRes.json()
         setAgent(agentData)
       }
 
       // Load affirmations
-      const affirmationsRes = await fetch(`http://localhost:8000/api/affirmations/user/${userId}`)
+      const affirmationsRes = await fetch(`http://localhost:8003/api/affirmations/user/${userId}`)
       if (affirmationsRes.ok) {
         const affirmationsData = await affirmationsRes.json()
         setAffirmations(affirmationsData.affirmations || [])
       }
 
       // Load schedule
-      const dashboardRes = await fetch(`http://localhost:8000/api/dashboard/user/${userId}`)
+      const dashboardRes = await fetch(`http://localhost:8003/api/dashboard/user/${userId}`)
       if (dashboardRes.ok) {
         const dashboardData = await dashboardRes.json()
         setSchedule(dashboardData.schedule || [])
@@ -79,7 +79,7 @@ export default function ChatPage() {
 
       // Load protocol if session exists
       if (sessionId) {
-        const sessionRes = await fetch(`http://localhost:8000/api/sessions/${sessionId}`)
+        const sessionRes = await fetch(`http://localhost:8003/api/sessions/${sessionId}`)
         if (sessionRes.ok) {
           const sessionData = await sessionRes.json()
           // Extract protocol data from session

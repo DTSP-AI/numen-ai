@@ -5,7 +5,7 @@ from datetime import datetime
 import uuid
 import logging
 
-from database import get_db_pool
+from database import get_pg_pool
 from services.agent_service import AgentService
 from config import settings
 

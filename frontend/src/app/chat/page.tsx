@@ -59,7 +59,7 @@ export default function ChatPage() {
     if (!sessionId) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/sessions/${sessionId}/messages`)
+      const response = await fetch(`http://localhost:8003/api/sessions/${sessionId}/messages`)
       const data = await response.json()
       setMessages(data.messages || [])
     } catch (error) {
@@ -72,12 +72,12 @@ export default function ChatPage() {
 
     try {
       // Load affirmations created by this agent
-      const affirmationsRes = await fetch(`http://localhost:8000/api/affirmations/agent/${agentId}`)
+      const affirmationsRes = await fetch(`http://localhost:8003/api/affirmations/agent/${agentId}`)
       const affirmationsData = await affirmationsRes.json()
       setAffirmations(affirmationsData.affirmations || [])
 
       // Load schedule
-      const scheduleRes = await fetch(`http://localhost:8000/api/dashboard/user/${userId}`)
+      const scheduleRes = await fetch(`http://localhost:8003/api/dashboard/user/${userId}`)
       const scheduleData = await scheduleRes.json()
       setSchedule(scheduleData.schedule || [])
 
@@ -100,7 +100,7 @@ export default function ChatPage() {
     if (!agentId) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/agents/${agentId}`)
+      const response = await fetch(`http://localhost:8003/api/agents/${agentId}`)
       const data = await response.json()
       setAgentName(data.name || "Your Guide")
     } catch (error) {
@@ -123,7 +123,7 @@ export default function ChatPage() {
     setIsTyping(true)
 
     try {
-      const response = await fetch(`http://localhost:8000/api/sessions/${sessionId}/message`, {
+      const response = await fetch(`http://localhost:8003/api/sessions/${sessionId}/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

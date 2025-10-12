@@ -9,8 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Stack
 - **Backend**: FastAPI 0.115.0, LangGraph 0.2.27, LiveKit 1.0.12, Deepgram 3.7.0, ElevenLabs 1.8.0
 - **Frontend**: Next.js 14.2.7, Tailwind, shadcn/ui, Radix, Framer Motion
-- **Memory**: Mem0 0.1.17, Qdrant 1.10.0
-- **Infrastructure**: Docker Compose, Azure Container Apps, PostgreSQL, Redis
+- **Memory**: Mem0 0.1.17 (cloud-based semantic memory)
+- **Infrastructure**: Docker Compose, Azure Container Apps, PostgreSQL
 
 ## Architecture
 
@@ -38,10 +38,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **ElevenLabs**: Text-to-Speech (Turbo v2 / Flash for low latency, enterprise tier)
 
 ### Memory Architecture
-- **Mem0**: Persistent memory layer for user preferences and session reflections
-- **Qdrant**: Vector database backing Mem0 for semantic retrieval
-- **PostgreSQL**: Structured data storage
-- **Redis**: Session state and caching
+- **Mem0**: Cloud-based persistent memory with semantic search (mem0ai 0.1.17)
+- **PostgreSQL**: Structured data storage (agents, threads, messages)
+- **Namespace Pattern**: `{tenant_id}:{agent_id}:thread:{thread_id}`
+- **No local vector store**: Fully managed by Mem0 cloud service
 
 ### Security & Compliance
 - SOC2 and HIPAA-ready architecture

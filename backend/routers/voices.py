@@ -4,7 +4,7 @@ Voice Selection & Preview API
 Provides endpoints for browsing ElevenLabs voices and generating preview audio.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import List, Optional
@@ -71,19 +71,23 @@ class VoicePreviewRequest(BaseModel):
 
 
 @router.get("/voices")
-async def get_available_voices(force_refresh: bool = False):
+async def get_available_voices(request: Request, force_refresh: bool = False):
     """
     Get all available voices for agent creation
 
     Returns voices from ElevenLabs SDK with metadata enriched for UI display
+    Filtered by user_id to show only system + user-owned voices
     """
     try:
         # Direct instantiation - bypass lazy loading issues
         from services.elevenlabs_service import ElevenLabsService
         service = ElevenLabsService()
 
-        # Fetch voices from ElevenLabs SDK
-        sdk_voices = service.get_available_voices()
+        # Get user_id from headers
+        user_id = request.headers.get("x-user-id")
+
+        # Fetch voices from ElevenLabs SDK (filtered by user_id)
+        sdk_voices = service.get_available_voices(user_id=user_id)
 
         # Enrich with UI-friendly metadata
         enriched_voices = []
@@ -230,10 +234,10 @@ async def generate_voice_preview(request: VoicePreviewRequest):
 
 
 @router.get("/voices/{voice_id}")
-async def get_voice_details(voice_id: str):
+async def get_voice_details(voice_id: str, request: Request):
     """Get detailed information about a specific voice"""
     # Get all voices
-    voices_response = await get_available_voices()
+    voices_response = await get_available_voices(request)
     voices = voices_response["voices"]
 
     # Find matching voice
@@ -243,3 +247,46 @@ async def get_voice_details(voice_id: str):
         raise HTTPException(status_code=404, detail="Voice not found")
 
     return voice
+
+
+@router.post("/voices/create")
+async def create_custom_voice(
+    request: Request,
+    name: str = Form(...),
+    description: str = Form(""),
+    files: List[UploadFile] = File(...)
+):
+    """
+    Create a custom ElevenLabs voice for the authenticated user.
+    Requires x-user-id header and at least one audio file (WAV/MP3).
+    """
+    # Get user_id from headers
+    user_id = request.headers.get("x-user-id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Missing x-user-id header")
+
+    # Initialize ElevenLabs service
+    try:
+        from services.elevenlabs_service import ElevenLabsService
+        service = ElevenLabsService()
+    except Exception as e:
+        logger.error(f"Failed to initialize ElevenLabs service: {e}")
+        raise HTTPException(status_code=503, detail="ElevenLabs service not available")
+
+    # Create voice
+    try:
+        result = await service.create_voice(
+            name=name,
+            files=files,
+            user_id=user_id,
+            description=description
+        )
+        logger.info(f"Voice created successfully for user {user_id}: {result['voice_id']}")
+        return {"status": "success", "voice": result}
+
+    except Exception as e:
+        logger.error(f"Voice creation failed for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create voice: {str(e)}"
+        )

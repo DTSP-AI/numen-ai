@@ -340,10 +340,23 @@ async def synthesize_audio(
             text = row["affirmation_text"]
             contract = row["contract"]
 
-            # Extract voice config
+            # Extract voice config with default fallback
             voice_config_data = contract.get("voice")
             if not voice_config_data:
-                raise HTTPException(status_code=400, detail="Agent has no voice configuration")
+                # Provide default Rachel voice instead of raising error
+                logger.warning(f"Agent has no voice config, using default Rachel voice")
+                voice_config_data = {
+                    "provider": "elevenlabs",
+                    "voice_id": "21m00Tcm4TlvDq8ikWAM",  # Rachel - calm female voice
+                    "language": "en-US",
+                    "speed": 1.0,
+                    "stability": 0.75,
+                    "similarity_boost": 0.75,
+                    "stt_provider": "deepgram",
+                    "stt_model": "nova-2",
+                    "stt_language": "en",
+                    "vad_enabled": True
+                }
 
             voice_config = VoiceConfiguration(**voice_config_data)
 
@@ -443,7 +456,20 @@ async def synthesize_script_audio(script_id: str):
 
             voice_config_data = contract.get("voice")
             if not voice_config_data:
-                raise HTTPException(status_code=400, detail="Agent has no voice configuration")
+                # Provide default Rachel voice instead of raising error
+                logger.warning(f"Agent has no voice config for script, using default Rachel voice")
+                voice_config_data = {
+                    "provider": "elevenlabs",
+                    "voice_id": "21m00Tcm4TlvDq8ikWAM",  # Rachel - calm female voice
+                    "language": "en-US",
+                    "speed": 1.0,
+                    "stability": 0.75,
+                    "similarity_boost": 0.75,
+                    "stt_provider": "deepgram",
+                    "stt_model": "nova-2",
+                    "stt_language": "en",
+                    "vad_enabled": True
+                }
 
             voice_config = VoiceConfiguration(**voice_config_data)
 

@@ -40,7 +40,7 @@ export function TherapySession({ sessionId, onBack }: TherapySessionProps) {
     setIsActive(true)
 
     // Connect to WebSocket
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003'
     const wsUrl = API_URL.replace('http', 'ws')
     const websocket = new WebSocket(`${wsUrl}/api/therapy/session/${sessionId}`)
 

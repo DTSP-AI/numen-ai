@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AIHelpButton } from "@/components/AIHelpButton"
+import GuideCustomization, { GuideControls } from "@/components/GuideCustomization"
 import { api } from "@/lib/api"
 import type { TonePreference, SessionType } from "@/types"
 
@@ -20,6 +22,9 @@ export function IntakeForm({ onComplete }: IntakeFormProps) {
   const [tone, setTone] = useState<TonePreference>("calm")
   const [sessionType, setSessionType] = useState<SessionType>("manifestation")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [focusedGoalIndex, setFocusedGoalIndex] = useState<number | null>(null)
+  const [showCustomization, setShowCustomization] = useState(false)
+  const [guideControls, setGuideControls] = useState<GuideControls | null>(null)
 
   // Generate a stable demo user ID (in production, this would come from auth)
   const [demoUserId] = useState(() => {
@@ -48,19 +53,48 @@ export function IntakeForm({ onComplete }: IntakeFormProps) {
     setIsSubmitting(true)
 
     try {
-      // Just collect intake data and pass to agent builder
-      // The Agent will create the session, NOT the intake
       const intakeData = {
         goals: goals.filter(g => g.trim() !== ""),
         tone,
         session_type: sessionType
       }
 
-      // Store intake data in localStorage for agent builder
-      localStorage.setItem('intakeData', JSON.stringify(intakeData))
+      // BASELINE FLOW: Call backend intake API
+      const intakeResponse = await fetch("http://localhost:8003/api/intake/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: demoUserId,
+          answers: intakeData,
+          guide_controls: guideControls  // Include user customization if provided
+        })
+      })
 
-      // Navigate to agent builder
-      router.push(`/create-agent?userId=${demoUserId}`)
+      if (!intakeResponse.ok) {
+        throw new Error("Intake processing failed")
+      }
+
+      const intakeContract = await intakeResponse.json()
+
+      // Create guide from intake contract
+      const guideResponse = await fetch("http://localhost:8003/api/agents/from_intake_contract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: demoUserId,
+          intake_contract: intakeContract
+        })
+      })
+
+      if (!guideResponse.ok) {
+        throw new Error("Guide creation failed")
+      }
+
+      const result = await guideResponse.json()
+
+      // Navigate to dashboard with agent + session
+      router.push(`/dashboard?agentId=${result.agent.id}&sessionId=${result.session.id}&success=true`)
+
     } catch (error) {
       console.error("Failed to process intake:", error)
       alert("We're currently preparing your personalized experience. Please check back in a moment, or contact support if this continues.")
@@ -102,13 +136,23 @@ export function IntakeForm({ onComplete }: IntakeFormProps) {
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.3 }}
               >
-                <Input
-                  value={goal}
-                  onChange={(e) => updateGoal(index, e.target.value)}
-                  placeholder="e.g., Build confidence, reduce anxiety..."
-                  className="flex-1 bg-white/15 border-white/25 text-white placeholder:text-white/60 h-14 text-lg rounded-xl focus:bg-white/20 transition-all hover:border-white/40"
-                  required={index === 0}
-                />
+                <div className="relative flex-1">
+                  <Input
+                    value={goal}
+                    onChange={(e) => updateGoal(index, e.target.value)}
+                    onFocus={() => setFocusedGoalIndex(index)}
+                    onBlur={() => setFocusedGoalIndex(null)}
+                    placeholder="e.g., Build confidence, reduce anxiety..."
+                    className="w-full bg-white/15 border-white/25 text-white placeholder:text-white/60 h-14 text-lg rounded-xl focus:bg-white/20 transition-all hover:border-white/40 pr-28"
+                    required={index === 0}
+                  />
+                  {(focusedGoalIndex === index || goal.trim()) && (
+                    <AIHelpButton
+                      value={goal}
+                      onResult={(suggestion) => updateGoal(index, suggestion)}
+                    />
+                  )}
+                </div>
                 {goals.length > 1 && (
                   <Button
                     type="button"
@@ -225,6 +269,56 @@ export function IntakeForm({ onComplete }: IntakeFormProps) {
               </SelectItem>
             </SelectContent>
           </Select>
+        </motion.div>
+
+        {/* Guide Customization (Optional) */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.35, duration: 0.5 }}
+        >
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+            <button
+              type="button"
+              onClick={() => setShowCustomization(!showCustomization)}
+              className="w-full flex items-center justify-between text-white hover:text-white/80 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🎛️</span>
+                <div className="text-left">
+                  <h3 className="text-lg font-semibold">Customize Your Guide (Optional)</h3>
+                  <p className="text-sm text-white/70">
+                    {showCustomization ? "Hide customization options" : "Fine-tune how your guide communicates"}
+                  </p>
+                </div>
+              </div>
+              <svg
+                className={`w-6 h-6 transition-transform ${showCustomization ? "rotate-180" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            <AnimatePresence>
+              {showCustomization && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="mt-6"
+                >
+                  <GuideCustomization
+                    onControlsChange={setGuideControls}
+                    disabled={isSubmitting}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </motion.div>
 
         {/* Submit */}

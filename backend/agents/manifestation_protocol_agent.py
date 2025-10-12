@@ -43,7 +43,9 @@ class ManifestationProtocolAgent:
         self.llm = ChatOpenAI(
             model="gpt-4",
             temperature=0.7,
-            openai_api_key=settings.openai_api_key
+            openai_api_key=settings.openai_api_key or settings.OPENAI_API_KEY,
+            request_timeout=60.0,  # 60 second timeout
+            max_retries=2  # Retry twice on failure
         )
         self.graph = self._build_graph()
 
@@ -168,6 +170,14 @@ Rules:
 - Evoke emotion
 - Include sensory details
 - Make them believable yet stretching
+
+IMPORTANT - ElevenLabs TTS Optimization:
+- Format for natural speech synthesis
+- Use proper punctuation for natural pauses (commas, periods)
+- Avoid abbreviations - spell out words fully
+- Break long sentences into shorter, breathable phrases
+- No special characters or emojis
+- Clear, unambiguous pronunciation
 
 Return JSON object with keys: identity, gratitude, action (each an array of strings)"""
 
@@ -397,15 +407,29 @@ Return JSON array of checkpoint objects."""
         user_id: str,
         goal: str,
         timeframe: str = "30_days",
-        commitment_level: str = "moderate"
+        commitment_level: str = "moderate",
+        agent_traits: Optional[Dict[str, int]] = None
     ) -> Dict:
-        """Generate complete manifestation protocol"""
+        """
+        Generate complete manifestation protocol
+
+        Args:
+            user_id: User UUID
+            goal: Manifestation goal
+            timeframe: Protocol duration (30_days, 60_days, 90_days)
+            commitment_level: User commitment (light, moderate, intensive)
+            agent_traits: Optional agent trait values for style modulation
+
+        Returns:
+            Complete protocol with trait-aware content
+        """
 
         initial_state = {
             "user_id": user_id,
             "goal": goal,
             "timeframe": timeframe,
             "commitment_level": commitment_level,
+            "agent_traits": agent_traits or {},  # Trait-aware generation
             "protocol": None,
             "daily_practices": [],
             "affirmations": [],
@@ -417,7 +441,76 @@ Return JSON array of checkpoint objects."""
 
         result = await self.graph.ainvoke(initial_state)
 
+        # Apply trait-based modulation to final protocol
+        if agent_traits:
+            result["protocol"] = self._modulate_protocol_by_traits(
+                result["protocol"],
+                agent_traits
+            )
+
         return result["protocol"]
+
+    def _modulate_protocol_by_traits(
+        self,
+        protocol: Dict,
+        traits: Dict[str, int]
+    ) -> Dict:
+        """
+        Modulate protocol content based on agent traits
+
+        Args:
+            protocol: Base protocol dictionary
+            traits: Agent trait values (0-100)
+
+        Returns:
+            Trait-modulated protocol
+        """
+        # Modulate affirmations
+        if "affirmations" in protocol and traits.get("confidence", 50) >= 70:
+            # High confidence: More assertive affirmations
+            protocol["affirmations"] = [
+                self._make_assertive(aff) for aff in protocol["affirmations"]
+            ]
+
+        if "affirmations" in protocol and traits.get("empathy", 50) >= 70:
+            # High empathy: More compassionate affirmations
+            protocol["affirmations"] = [
+                self._make_compassionate(aff) for aff in protocol["affirmations"]
+            ]
+
+        # Modulate practices intensity
+        if traits.get("discipline", 50) >= 70:
+            # High discipline: Add structure and accountability
+            if "daily_practices" in protocol:
+                protocol["daily_practices"].append({
+                    "practice": "Daily Progress Journal",
+                    "duration": "5 minutes",
+                    "description": "Track your adherence and reflect on growth"
+                })
+
+        # Modulate creativity in visualizations
+        if traits.get("creativity", 50) >= 70:
+            # High creativity: More imaginative visualization techniques
+            if "visualization_scripts" in protocol:
+                for viz in protocol["visualization_scripts"]:
+                    viz["technique"] = "Creative, multi-sensory immersion"
+
+        return protocol
+
+    def _make_assertive(self, affirmation: str) -> str:
+        """Convert affirmation to more assertive language"""
+        # Replace tentative language with definitive statements
+        assertive = affirmation.replace("I can", "I AM")
+        assertive = assertive.replace("I will", "I DO")
+        assertive = assertive.replace("I want to", "I")
+        assertive = assertive.replace("trying to", "")
+        return assertive.upper() if len(assertive) < 50 else assertive
+
+    def _make_compassionate(self, affirmation: str) -> str:
+        """Add compassionate, gentle language to affirmation"""
+        if not affirmation.startswith("I gently") and not affirmation.startswith("I compassionately"):
+            return f"I gently {affirmation.lower()}"
+        return affirmation
 
 
 # Helper function for easy access

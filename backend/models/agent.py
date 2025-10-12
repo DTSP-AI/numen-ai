@@ -33,15 +33,27 @@ class AgentTraits(BaseModel):
 
     These traits dynamically adjust agent behavior at runtime
     without code changes. Higher values intensify the trait.
+
+    Core 4 attributes for Guide creation:
+    - Confidence, Empathy, Creativity, Discipline
     """
+    confidence: int = Field(
+        ge=0, le=100, default=70,
+        description="Certainty and authority in responses"
+    )
+    empathy: int = Field(
+        ge=0, le=100, default=70,
+        description="Emotional sensitivity and understanding"
+    )
     creativity: int = Field(
         ge=0, le=100, default=50,
         description="Creative vs structured responses"
     )
-    empathy: int = Field(
-        ge=0, le=100, default=50,
-        description="Emotional sensitivity and understanding"
+    discipline: int = Field(
+        ge=0, le=100, default=60,
+        description="Structured and consistent approach"
     )
+    # Additional traits (optional)
     assertiveness: int = Field(
         ge=0, le=100, default=50,
         description="Directive vs suggestive communication"
@@ -57,10 +69,6 @@ class AgentTraits(BaseModel):
     verbosity: int = Field(
         ge=0, le=100, default=50,
         description="Concise vs detailed responses"
-    )
-    confidence: int = Field(
-        ge=0, le=100, default=70,
-        description="Certainty and authority in responses"
     )
     spirituality: int = Field(
         ge=0, le=100, default=60,
@@ -107,6 +115,10 @@ class AgentIdentity(BaseModel):
         default="",
         description="Character archetype this agent embodies"
     )
+    roles: List[str] = Field(
+        default_factory=list,
+        description="Guide roles (Stoic Sage, Manifestation Mentor, Life Coach, etc.)"
+    )
     mission: Optional[str] = Field(
         default="",
         description="Primary objective and goals"
@@ -114,6 +126,14 @@ class AgentIdentity(BaseModel):
     interaction_style: Optional[str] = Field(
         default="",
         description="Communication approach and manner"
+    )
+    interaction_styles: List[str] = Field(
+        default_factory=list,
+        description="Multiple interaction styles (Encouraging, Analytical, Compassionate, Direct)"
+    )
+    avatar_url: Optional[str] = Field(
+        default=None,
+        description="URL to agent avatar image (uploaded or AI-generated)"
     )
 
     class Config:

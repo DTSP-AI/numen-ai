@@ -24,7 +24,7 @@ export function AffirmationCard({ affirmation, onUpdate, userId = "00000000-0000
   const [isSynthesizing, setIsSynthesizing] = useState(false)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(() =>
     typeof Audio !== "undefined" && affirmation.audio_url
-      ? new Audio(`http://localhost:8000${affirmation.audio_url}`)
+      ? new Audio(`http://localhost:8003${affirmation.audio_url}`)
       : null
   )
 
@@ -48,7 +48,7 @@ export function AffirmationCard({ affirmation, onUpdate, userId = "00000000-0000
       setIsPlaying(true)
 
       // Record play event
-      await fetch(`http://localhost:8000/api/affirmations/${affirmation.id}/play`, {
+      await fetch(`http://localhost:8003/api/affirmations/${affirmation.id}/play`, {
         method: "POST"
       })
       onUpdate()
@@ -58,7 +58,7 @@ export function AffirmationCard({ affirmation, onUpdate, userId = "00000000-0000
   }
 
   const handleFavorite = async () => {
-    await fetch(`http://localhost:8000/api/affirmations/${affirmation.id}/favorite?is_favorite=${!affirmation.is_favorite}`, {
+    await fetch(`http://localhost:8003/api/affirmations/${affirmation.id}/favorite?is_favorite=${!affirmation.is_favorite}`, {
       method: "PATCH"
     })
     onUpdate()
@@ -67,7 +67,7 @@ export function AffirmationCard({ affirmation, onUpdate, userId = "00000000-0000
   const handleSynthesize = async () => {
     setIsSynthesizing(true)
     try {
-      const response = await fetch(`http://localhost:8000/api/affirmations/${affirmation.id}/synthesize`, {
+      const response = await fetch(`http://localhost:8003/api/affirmations/${affirmation.id}/synthesize`, {
         method: "POST",
         headers: {
           "x-user-id": userId
@@ -78,7 +78,7 @@ export function AffirmationCard({ affirmation, onUpdate, userId = "00000000-0000
         const data = await response.json()
         // Create new audio element with synthesized audio
         if (data.audio_url) {
-          const newAudio = new Audio(`http://localhost:8000${data.audio_url}`)
+          const newAudio = new Audio(`http://localhost:8003${data.audio_url}`)
           setAudio(newAudio)
         }
         onUpdate()

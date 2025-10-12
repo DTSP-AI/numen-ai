@@ -139,7 +139,13 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
   const loadVoices = async () => {
     setIsLoadingVoices(true)
     try {
-      const response = await fetch("http://localhost:8003/api/voices")
+      const response = await fetch("http://localhost:8003/api/voices", {
+        headers: {
+          "x-user-id": userId,
+          "Accept": "application/json"
+        },
+        mode: "cors"
+      })
       const data = await response.json()
       setAvailableVoices(data.voices || [])
     } catch (error) {
@@ -208,7 +214,11 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
 
       if (response.ok) {
         const data = await response.json()
-        setAvatarUrl(data.avatar_url)
+        // Prepend localhost if relative URL
+        const fullAvatarUrl = data.avatar_url.startsWith('http')
+          ? data.avatar_url
+          : `http://localhost:8003${data.avatar_url}`
+        setAvatarUrl(fullAvatarUrl)
       } else {
         const error = await response.text()
         console.error("Avatar generation failed:", error)
@@ -665,14 +675,14 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-4">
                   {availableVoices.map((voice) => (
-                    <button
+                    <div
                       key={voice.id}
-                      onClick={() => setSelectedVoice(voice)}
-                      className={`p-4 rounded-lg transition-all text-left ${
+                      className={`p-4 rounded-lg transition-all cursor-pointer ${
                         selectedVoice?.id === voice.id
                           ? "bg-white text-kurzgesagt-purple border-2 border-white"
                           : "bg-white/10 text-white border-2 border-white/20 hover:bg-white/20"
                       }`}
+                      onClick={() => setSelectedVoice(voice)}
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
@@ -704,7 +714,7 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
                           {isPlayingPreview === voice.id ? "Playing..." : "Preview"}
                         </button>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
 
@@ -715,6 +725,20 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
                     </p>
                   </div>
                 )}
+
+                {/* Voice Lab Navigation Button */}
+                <div className="bg-gradient-to-r from-kurzgesagt-yellow/20 to-kurzgesagt-pink/20 border-2 border-kurzgesagt-yellow/40 rounded-xl p-6 mt-6">
+                  <h3 className="text-white font-bold text-xl mb-2">🎙️ Create Your Own Voice</h3>
+                  <p className="text-white/80 text-sm mb-4">
+                    Record or upload voice samples to clone your own custom voice with AI
+                  </p>
+                  <Button
+                    onClick={() => router.push(`/voice-lab?userId=${userId}`)}
+                    className="w-full bg-kurzgesagt-yellow text-kurzgesagt-navy font-bold text-lg py-6 hover:bg-kurzgesagt-yellow/90 transition-all shadow-lg"
+                  >
+                    Open Voice Lab →
+                  </Button>
+                </div>
               </div>
             )}
           </motion.div>
