@@ -14,9 +14,11 @@ interface Message {
 interface MessageBubbleProps {
   message: Message
   isLatest: boolean
+  agentAvatar?: string | null
+  agentName?: string
 }
 
-export function MessageBubble({ message, isLatest }: MessageBubbleProps) {
+export function MessageBubble({ message, isLatest, agentAvatar, agentName }: MessageBubbleProps) {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
   const isAgent = message.role === "agent"
 
@@ -46,15 +48,23 @@ export function MessageBubble({ message, isLatest }: MessageBubbleProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className={`flex gap-3 ${isAgent ? "justify-start" : "justify-end"}`}
+      className={`flex gap-4 items-start ${isAgent ? "justify-start" : "justify-end"}`}
     >
       {isAgent && (
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-kurzgesagt-purple to-kurzgesagt-coral flex items-center justify-center text-lg flex-shrink-0">
-          🤖
-        </div>
+        agentAvatar ? (
+          <img
+            src={agentAvatar}
+            alt={agentName || "Agent"}
+            className="w-16 h-16 rounded-full object-cover ring-2 ring-white/20 flex-shrink-0 mt-1"
+          />
+        ) : (
+          <div className="w-16 h-16 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-xl font-bold flex-shrink-0 mt-1">
+            {agentName?.[0] || "A"}
+          </div>
+        )
       )}
 
-      <div className={`flex flex-col ${isAgent ? "items-start" : "items-end"} max-w-[70%]`}>
+      <div className={`flex flex-col ${isAgent ? "items-start" : "items-end"} ${isAgent ? "flex-1 max-w-2xl" : "max-w-[70%]"}`}>
         {/* Message Bubble */}
         <div
           className={`px-4 py-3 rounded-2xl ${
@@ -109,11 +119,6 @@ export function MessageBubble({ message, isLatest }: MessageBubbleProps) {
         </span>
       </div>
 
-      {!isAgent && (
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-kurzgesagt-aqua to-kurzgesagt-yellow flex items-center justify-center text-lg flex-shrink-0">
-          👤
-        </div>
-      )}
     </motion.div>
   )
 }

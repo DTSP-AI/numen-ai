@@ -34,12 +34,14 @@ export function ChatInterface({
   const [inputValue, setInputValue] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [agentAvatar, setAgentAvatar] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     loadMessages()
-  }, [sessionId])
+    loadAgentAvatar()
+  }, [sessionId, agentId])
 
   useEffect(() => {
     scrollToBottom()
@@ -60,6 +62,26 @@ export function ChatInterface({
       }
     } catch (error) {
       console.error("Failed to load messages:", error)
+    }
+  }
+
+  const loadAgentAvatar = async () => {
+    try {
+      const response = await fetch(`http://localhost:8003/api/agents/${agentId}`, {
+        headers: {
+          'x-tenant-id': '00000000-0000-0000-0000-000000000001',
+          'x-user-id': userId
+        }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        const avatarUrl = data.contract?.identity?.avatar_url
+        if (avatarUrl) {
+          setAgentAvatar(avatarUrl)
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load agent avatar:", error)
     }
   }
 
@@ -125,9 +147,17 @@ export function ChatInterface({
       {/* Header */}
       <div className="glass-card border-b border-white/20 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-kurzgesagt-purple to-kurzgesagt-coral flex items-center justify-center text-2xl">
-            🤖
-          </div>
+          {agentAvatar ? (
+            <img
+              src={agentAvatar}
+              alt={agentName}
+              className="w-12 h-12 rounded-full object-cover ring-2 ring-white/20"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-kurzgesagt-purple to-kurzgesagt-coral flex items-center justify-center text-xl font-bold text-white">
+              {agentName[0]}
+            </div>
+          )}
           <div>
             <h2 className="text-xl font-bold text-white">{agentName}</h2>
             <p className="text-sm text-white/60">Your Manifestation Guide</p>
@@ -151,7 +181,17 @@ export function ChatInterface({
               animate={{ opacity: 1, y: 0 }}
               className="text-center py-12"
             >
-              <div className="text-6xl mb-4">💬</div>
+              {agentAvatar ? (
+                <img
+                  src={agentAvatar}
+                  alt={agentName}
+                  className="w-24 h-24 mx-auto mb-6 rounded-full object-cover ring-4 ring-white/30"
+                />
+              ) : (
+                <div className="w-24 h-24 mx-auto mb-6 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-4xl font-bold">
+                  {agentName[0]}
+                </div>
+              )}
               <h3 className="text-2xl font-bold text-white mb-2">Start Your Journey</h3>
               <p className="text-white/60">Ask me anything about your manifestation goals</p>
             </motion.div>
@@ -162,6 +202,8 @@ export function ChatInterface({
               key={message.id}
               message={message}
               isLatest={index === messages.length - 1}
+              agentAvatar={agentAvatar}
+              agentName={agentName}
             />
           ))}
 
@@ -169,11 +211,19 @@ export function ChatInterface({
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex gap-3"
+              className="flex gap-4 items-start"
             >
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-kurzgesagt-purple to-kurzgesagt-coral flex items-center justify-center text-lg flex-shrink-0">
-                🤖
-              </div>
+              {agentAvatar ? (
+                <img
+                  src={agentAvatar}
+                  alt={agentName}
+                  className="w-16 h-16 rounded-full object-cover ring-2 ring-white/20 flex-shrink-0 mt-1"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-xl font-bold flex-shrink-0 mt-1">
+                  {agentName[0]}
+                </div>
+              )}
               <div className="glass-card px-4 py-3 rounded-2xl rounded-tl-sm">
                 <div className="flex gap-1">
                   <motion.div
