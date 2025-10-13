@@ -360,9 +360,17 @@ export default function ChatPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="text-center py-12"
               >
-                <div className="w-20 h-20 mx-auto mb-6 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-3xl">
-                  💬
-                </div>
+                {agentAvatar ? (
+                  <img
+                    src={agentAvatar}
+                    alt={agentName}
+                    className="w-24 h-24 mx-auto mb-6 rounded-full object-cover ring-4 ring-white/30"
+                  />
+                ) : (
+                  <div className="w-24 h-24 mx-auto mb-6 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-4xl font-bold">
+                    {agentName[0]}
+                  </div>
+                )}
                 <h2 className="text-3xl font-bold text-white mb-3">Start Your Journey</h2>
                 <p className="text-white/60 text-lg">Ask me anything about your manifestation goals</p>
               </motion.div>
@@ -374,43 +382,34 @@ export default function ChatPage() {
                 initial={{ opacity: 0, y: 20, x: message.role === "user" ? 20 : -20 }}
                 animate={{ opacity: 1, y: 0, x: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex ${message.role === "user" ? "justify-end" : "justify-start items-start gap-4"}`}
               >
+                {message.role === "assistant" && (
+                  agentAvatar ? (
+                    <img
+                      src={agentAvatar}
+                      alt={agentName}
+                      className="w-16 h-16 rounded-full object-cover ring-2 ring-white/20 flex-shrink-0 mt-1"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-xl font-bold flex-shrink-0 mt-1">
+                      {agentName[0]}
+                    </div>
+                  )
+                )}
                 <div
-                  className={`max-w-2xl ${
+                  className={`${message.role === "user" ? "max-w-2xl" : "flex-1 max-w-2xl"} ${
                     message.role === "user"
                       ? "bg-gradient-to-br from-kurzgesagt-purple to-kurzgesagt-purple/80"
                       : "glass-card"
                   } rounded-2xl p-5 shadow-lg`}
                 >
-                  <div className="flex items-start gap-3">
-                    {message.role === "assistant" && (
-                      agentAvatar ? (
-                        <img
-                          src={agentAvatar}
-                          alt={agentName}
-                          className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20 flex-shrink-0"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                          {agentName[0]}
-                        </div>
-                      )
-                    )}
-                    <div className="flex-1">
-                      <p className="text-white leading-relaxed whitespace-pre-wrap">
-                        {message.content}
-                      </p>
-                      <p className="text-white/40 text-xs mt-2">
-                        {new Date(message.timestamp).toLocaleTimeString()}
-                      </p>
-                    </div>
-                    {message.role === "user" && (
-                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                        You
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-white leading-relaxed whitespace-pre-wrap">
+                    {message.content}
+                  </p>
+                  <p className="text-white/40 text-xs mt-2">
+                    {new Date(message.timestamp).toLocaleTimeString()}
+                  </p>
                 </div>
               </motion.div>
             ))}
@@ -419,38 +418,36 @@ export default function ChatPage() {
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex justify-start"
+                className="flex justify-start items-start gap-4"
               >
+                {agentAvatar ? (
+                  <img
+                    src={agentAvatar}
+                    alt={agentName}
+                    className="w-16 h-16 rounded-full object-cover ring-2 ring-white/20 flex-shrink-0 mt-1"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-xl font-bold flex-shrink-0 mt-1">
+                    {agentName[0]}
+                  </div>
+                )}
                 <div className="glass-card rounded-2xl p-5">
-                  <div className="flex items-center gap-3">
-                    {agentAvatar ? (
-                      <img
-                        src={agentAvatar}
-                        alt={agentName}
-                        className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-sm font-bold">
-                        {agentName[0]}
-                      </div>
-                    )}
-                    <div className="flex gap-1">
-                      <motion.div
-                        animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
-                        transition={{ repeat: Infinity, duration: 1, delay: 0 }}
-                        className="w-2 h-2 rounded-full bg-white/60"
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
-                        transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
-                        className="w-2 h-2 rounded-full bg-white/60"
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
-                        transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
-                        className="w-2 h-2 rounded-full bg-white/60"
-                      />
-                    </div>
+                  <div className="flex gap-1">
+                    <motion.div
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ repeat: Infinity, duration: 1, delay: 0 }}
+                      className="w-2 h-2 rounded-full bg-white/60"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
+                      className="w-2 h-2 rounded-full bg-white/60"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
+                      className="w-2 h-2 rounded-full bg-white/60"
+                    />
                   </div>
                 </div>
               </motion.div>
