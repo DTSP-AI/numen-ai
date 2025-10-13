@@ -253,7 +253,7 @@ async def get_agent(
     ```
     """
     try:
-        tenant_id = x_tenant_id or get_tenant_id()
+        tenant_id = x_tenant_id if x_tenant_id else "00000000-0000-0000-0000-000000000001"
 
         agent = await agent_service.get_agent(agent_id, tenant_id)
 
@@ -664,19 +664,19 @@ async def create_agent_from_intake(
         from services.attribute_calculator import calculate_guide_attributes
         from models.schemas import IntakeContract as SchemaIntakeContract
 
+        # Default fallback traits
+        calculated_traits = AgentTraits()
+
         try:
             # Convert to IntakeContract schema for calculator
             intake_schema = SchemaIntakeContract(
-                name=intake_contract.get("name", "User"),
-                session_type=session_type,
-                tone=tone,
-                goals=normalized_goals,
-                challenges=intake_contract.get("challenges", []),
-                preferences=intake_contract.get("preferences", {})
+                normalized_goals=normalized_goals,
+                prefs=prefs,
+                notes=intake_contract.get("notes", "")
             )
 
             # Check if user provided guide controls (Priority 1)
-            user_controls = request.guide_controls if hasattr(request, 'guide_controls') else None
+            user_controls = None  # request.guide_controls if hasattr(request, 'guide_controls') else None
 
             if user_controls:
                 logger.info(f"🎛️ User controls provided: {user_controls.model_dump()}")
@@ -688,8 +688,7 @@ async def create_agent_from_intake(
                 logger.info(f"✅ AI-calculated traits: {calculated_traits.model_dump()}")
         except Exception as e:
             logger.warning(f"Trait calculation failed, using defaults: {e}")
-            # Fallback to session-type defaults
-            calculated_traits = AgentTraits()
+            # Use fallback traits already set above
 
         # Build GuideContract with AI-calculated attributes
         guide_contract_dict = {
