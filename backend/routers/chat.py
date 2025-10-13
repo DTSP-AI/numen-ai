@@ -7,10 +7,14 @@ import logging
 
 from database import get_pg_pool
 from services.agent_service import AgentService
+from services.elevenlabs_service import ElevenLabsService
 from config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Initialize services
+elevenlabs_service = ElevenLabsService()
 
 
 class ChatMessageRequest(BaseModel):
@@ -39,25 +43,12 @@ class ChatHistoryResponse(BaseModel):
 async def send_chat_message(session_id: str, request: ChatMessageRequest):
     """
     Send a message in a chat session and get agent response
+    Uses production LangGraph agent with memory, personality traits, and voice synthesis
     """
-    pool = get_db_pool()
+    pool = get_pg_pool()
 
     try:
         async with pool.acquire() as conn:
-            # Ensure messages table exists
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS messages (
-                    id UUID PRIMARY KEY,
-                    session_id UUID NOT NULL REFERENCES sessions(id),
-                    role VARCHAR(20) NOT NULL,
-                    content TEXT NOT NULL,
-                    audio_url TEXT,
-                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-                )
-                """
-            )
-
             # Get session
             session = await conn.fetchrow(
                 "SELECT * FROM sessions WHERE id = $1",
@@ -67,7 +58,7 @@ async def send_chat_message(session_id: str, request: ChatMessageRequest):
             if not session:
                 raise HTTPException(status_code=404, detail="Session not found")
 
-            # Get agent
+            # Get agent with full contract
             agent = await conn.fetchrow(
                 "SELECT * FROM agents WHERE id = $1",
                 uuid.UUID(request.agent_id)
@@ -76,49 +67,68 @@ async def send_chat_message(session_id: str, request: ChatMessageRequest):
             if not agent:
                 raise HTTPException(status_code=404, detail="Agent not found")
 
+            # Get tenant_id from session or use default
+            tenant_id_value = session.get("tenant_id")
+            if tenant_id_value is None:
+                tenant_id = "00000000-0000-0000-0000-000000000001"
+            else:
+                tenant_id = str(tenant_id_value)
+
             # Store user message
             user_message_id = uuid.uuid4()
             user_timestamp = datetime.utcnow()
-            await conn.execute(
-                """
-                INSERT INTO messages (id, session_id, role, content, created_at)
-                VALUES ($1, $2, $3, $4, $5)
-                """,
-                user_message_id,
-                uuid.UUID(session_id),
-                "user",
-                request.message,
-                user_timestamp
-            )
 
-            # Get agent service
+            # Get agent service and process with production workflow
             agent_service = AgentService()
 
-            # Process message with agent
-            agent_response = await agent_service.process_chat_message(
+            # Use process_interaction which invokes LangGraph agent with memory
+            result = await agent_service.process_interaction(
                 agent_id=request.agent_id,
-                session_id=session_id,
-                message=request.message,
-                context=session.get("session_data", {})
+                tenant_id=tenant_id,
+                user_id=request.user_id,
+                user_input=request.message,
+                thread_id=session_id,  # Use session as thread
+                metadata={"session_type": "chat"}
             )
 
-            # Store agent message
+            agent_content = result.get("response", "I'm here to help guide you on your manifestation journey.")
+
+            # Generate voice audio if agent has voice configuration
+            audio_url = None
+            agent_contract = agent.get("contract", {})
+            voice_config = agent_contract.get("voice", {})
+
+            if voice_config and voice_config.get("enabled"):
+                try:
+                    # Generate TTS audio
+                    voice_id = voice_config.get("voice_id")
+                    audio_bytes = await elevenlabs_service.generate_speech_with_voice_id(
+                        text=agent_content,
+                        voice_id=voice_id,
+                        model="eleven_turbo_v2"
+                    )
+
+                    # Save audio file
+                    import os
+                    from pathlib import Path
+
+                    audio_dir = Path("backend/audio_files")
+                    audio_dir.mkdir(parents=True, exist_ok=True)
+
+                    audio_filename = f"{uuid.uuid4()}.mp3"
+                    audio_path = audio_dir / audio_filename
+
+                    with open(audio_path, 'wb') as f:
+                        f.write(audio_bytes)
+
+                    audio_url = f"/audio/{audio_filename}"
+                    logger.info(f"Generated TTS audio: {audio_url}")
+
+                except Exception as audio_error:
+                    logger.warning(f"Failed to generate audio, continuing without: {audio_error}")
+
             agent_message_id = uuid.uuid4()
             agent_timestamp = datetime.utcnow()
-            agent_content = agent_response.get("response", "I'm here to help guide you on your manifestation journey.")
-
-            await conn.execute(
-                """
-                INSERT INTO messages (id, session_id, role, content, audio_url, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                """,
-                agent_message_id,
-                uuid.UUID(session_id),
-                "agent",
-                agent_content,
-                agent_response.get("audio_url"),
-                agent_timestamp
-            )
 
             return ChatMessageResponse(
                 user_message={
@@ -132,12 +142,12 @@ async def send_chat_message(session_id: str, request: ChatMessageRequest):
                     "role": "agent",
                     "content": agent_content,
                     "timestamp": agent_timestamp.isoformat(),
-                    "audio_url": agent_response.get("audio_url")
+                    "audio_url": audio_url
                 }
             )
 
     except Exception as e:
-        logger.error(f"Failed to process chat message: {str(e)}")
+        logger.error(f"Failed to process chat message: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -146,32 +156,21 @@ async def get_chat_history(session_id: str):
     """
     Get all messages for a session
     """
-    pool = get_db_pool()
+    pool = get_pg_pool()
 
     try:
         async with pool.acquire() as conn:
-            # Check if messages table exists, if not create it
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS messages (
-                    id UUID PRIMARY KEY,
-                    session_id UUID NOT NULL REFERENCES sessions(id),
-                    role VARCHAR(20) NOT NULL,
-                    content TEXT NOT NULL,
-                    audio_url TEXT,
-                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-                )
-                """
-            )
-
+            # Check if messages table exists, if not create it (use thread_messages instead)
+            # Note: We actually store messages in thread_messages table, not a separate messages table
+            # This query should use thread_messages for consistency
             messages = await conn.fetch(
                 """
-                SELECT id, role, content, audio_url, created_at
-                FROM messages
-                WHERE session_id = $1
+                SELECT id, role, content, metadata, created_at
+                FROM thread_messages
+                WHERE thread_id = $1::uuid
                 ORDER BY created_at ASC
                 """,
-                uuid.UUID(session_id)
+                session_id
             )
 
             return ChatHistoryResponse(
@@ -196,7 +195,7 @@ async def get_agent_affirmations(agent_id: str):
     """
     Get affirmations created by a specific agent
     """
-    pool = get_db_pool()
+    pool = get_pg_pool()
 
     try:
         async with pool.acquire() as conn:
@@ -205,11 +204,11 @@ async def get_agent_affirmations(agent_id: str):
                 SELECT a.*
                 FROM affirmations a
                 JOIN sessions s ON a.user_id = s.user_id
-                WHERE s.agent_id = $1
+                WHERE s.agent_id = $1::uuid
                 ORDER BY a.created_at DESC
                 LIMIT 20
                 """,
-                uuid.UUID(agent_id)
+                agent_id
             )
 
             return {

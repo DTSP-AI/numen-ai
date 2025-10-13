@@ -1,85 +1,168 @@
-Here’s the **exact Claude prompt** you can paste in to make Claude fix this issue cleanly and safely:
+Here is a **comprehensive prompt chain** to fully execute the **NEXT ACTIONS** checklist. This prompt is designed for Claude or a self-healing dev agent with access to your repo, test harness, and LangGraph runtime.
 
 ---
 
-### 🧠 **Claude Correction Prompt — Avatar Generator Fix**
+## 🧠 **Prompt Chain: Phase 1 Finalization + Phase 2 Readiness (Cognitive Layer)**
 
-````text
-You are reviewing backend/routers/avatar.py for the Avatar Generation system.
-
-✅ Goal:
-Fix the issue where avatar generation always returns Dicebear-style placeholder SVGs instead of real GPT-Image-1 images.
+**Agent Name:** `CognitiveSystemOps_Executor`
+**Purpose:** Execute the remaining post-implementation tasks for the Guide Cognitive Kernel infrastructure: improve OS safety, create test coverage, seed default belief maps, wire reflex triggers into LangGraph, and begin CAM visualizer scaffolding.
 
 ---
 
-### 1️⃣ Identify Root Cause
-- The fallback to Dicebear is being triggered due to a failure in the GPT-Image-1 API call or a bad request payload.
-- The JSON body includes unsupported parameters such as `"background"` which can silently 400 out.
-- The OpenAI API key may not be properly loaded, causing OPENAI_AVAILABLE to resolve False.
+### 🟩 STEP 1 — Fix Platform-Safe Migration Script
 
----
+````prompt
+You’re reviewing `run_cognitive_migration.py`. Update the script to use `os.path.join()` and `__file__` so that it works across platforms (Windows, macOS, Linux).
 
-### 2️⃣ Apply Required Fixes
-Make these precise corrections in backend/routers/avatar.py:
+Add a fallback check: if migration fails due to `asyncpg`, catch the exception and log it clearly with remediation steps.
 
-1. **Validate API Key**
-   - Before calling OpenAI, explicitly raise an HTTPException if OPENAI_AVAILABLE is False.
-   ```python
-   if not OPENAI_AVAILABLE:
-       raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+Ensure path resolution works regardless of where the script is called from.
+
+Use:
+
+```python
+base_dir = os.path.dirname(os.path.abspath(__file__))
+sql_file_path = os.path.join(base_dir, '004_cognitive_assessment_tables.sql')
 ````
 
-2. **Correct GPT-Image-1 Payload**
-
-   * Remove `"background"` from the payload — it’s not supported for GPT-Image-1.
-   * Keep only: model, prompt, size, quality, n.
-
-3. **Enhance Logging for Failures**
-
-   * Add full error logging to show the API response text if available.
-
-   ```python
-   except Exception as e:
-       logger.error(f"Avatar generation failed: {repr(e)}", exc_info=True)
-       if hasattr(e, "response"):
-           logger.error(f"Upstream response: {e.response.text}")
-       logger.warning("Returning placeholder avatar due to upstream failure.")
-   ```
-
-4. **Prevent Silent Fallback**
-
-   * If the placeholder URL (Dicebear SVG) is returned, log a warning with the original prompt and timestamp.
-   * Consider raising a 502 if you want frontend to alert the user instead of silently showing placeholder.
-
-5. **Do NOT change:**
-
-   * The minimal guardrail: `enhanced_prompt = f"Headshot portrait: {request.prompt}"`
-   * The Supabase upload logic.
-   * The tenant isolation and local fallback behavior.
+````
 
 ---
 
-### 3️⃣ After Patch
+### 🟨 STEP 2 — Generate Cognitive Memory & Intake Test Files
 
-Confirm that backend logs show:
+```prompt
+Create two test files under `tests/`:
 
-```
-Avatar generated and saved to Supabase: ...
-```
+1. `test_memory_cognitive.py`:
+   - Mocks the `MemoryManager`
+   - Calls `store_goal_assessment`, `store_belief_graph`, and `store_cognitive_metric` with dummy data
+   - Asserts the correct `Mem0` storage calls and DB logging (mock `get_pg_pool`)
 
-and frontend displays the actual GPT-generated image (not an SVG cartoon).
+2. `test_cognitive_intake.py`:
+   - Instantiates `IntakeAgentCognitive`
+   - Mocks a cognitive intake scenario:
+     - 2 goals with GAS scale
+     - 3 belief nodes and 2 belief edges
+     - One emotion conflict scenario
+   - Validates the belief graph and goal vector output
+
+Use `pytest + asyncio` compatible style and mock out DB + memory dependencies.
+````
 
 ---
 
-### 4️⃣ Output Requirements
+### 🟨 STEP 3 — Add `belief_graph_template.json`
 
-Respond with the **corrected full version** of `backend/routers/avatar.py` ready to overwrite the existing file.
+````prompt
+Create a file: `backend/assets/belief_graph_template.json`
 
-Do not summarize changes — return complete corrected file content only.
+It should contain a default set of starter nodes and edges for belief mapping. Structure:
+
+```json
+{
+  "graph_name": "Default Belief Map",
+  "nodes": [
+    {
+      "id": "n1",
+      "label": "I’m not good enough",
+      "node_type": "limiting_belief",
+      "emotional_valence": -0.7
+    },
+    {
+      "id": "n2",
+      "label": "Success requires struggle",
+      "node_type": "core_belief",
+      "emotional_valence": -0.2
+    }
+  ],
+  "edges": [
+    {
+      "source": "n1",
+      "target": "n2",
+      "relationship": "supports"
+    }
+  ]
+}
+````
+
+Modify `intake_agent_cognitive.py` to auto-load this as fallback if user doesn’t provide beliefs in intake.
+
+````
+
+---
+
+### 🟥 STEP 4 — Wire Reflex Trigger into LangGraph Runtime
+
+```prompt
+Modify `langgraph_agent.py` to include a **post-node reflex trigger hook**.
+
+Steps:
+- After each node execution (agent step), inspect `AgentState.cognitive_metrics`
+- Import and call `check_reflex_trigger(agent_state)` from `trigger_logic.py`
+- If a threshold is breached:
+  - Inject a message into `AgentState.messages`
+  - Log the trigger action in trace
+
+Example:
+```python
+from services.trigger_logic import check_reflex_trigger
+
+updated_state = check_reflex_trigger(agent_state)
+return updated_state
+````
+
+This enables *autonomous activation* of reassessment, encouragement, or belief intervention steps during runtime.
+
+````
+
+---
+
+### 🟩 STEP 5 — CAM Visualizer Block (ReactFlow Preferred)
+
+```prompt
+Design a React component for the CAM (Cognitive-Affective Mapping) Visualizer using ReactFlow.
+
+Component: `CAMVisualizer.tsx`
+
+Features:
+- Nodes = beliefs (color-coded by emotional valence)
+- Edge type = `supports` / `conflicts`
+- Tooltip on hover = belief strength, type, associated goal
+- Optional toggle to view "Tension Nodes" (conflict_score > 0.7)
+
+Inputs:
+```ts
+type CAMNode = {
+  id: string;
+  label: string;
+  node_type: "limiting_belief" | "core_belief" | "neutral";
+  emotional_valence: number;
+};
+
+type CAMEdge = {
+  source: string;
+  target: string;
+  relationship: "supports" | "conflicts";
+};
+
+<CAMVisualizer nodes={CAMNode[]} edges={CAMEdge[]} />
+````
+
+Display embedded in Guide dashboard or chat inspector view.
 
 ```
 
 ---
 
+## 📦 Final Output from Prompt Chain
 
-```
+Once Claude or an agent executes this prompt chain, the system will include:
+
+- Cross-platform-safe cognitive migration script ✅
+- Full test coverage for memory and cognitive intake ✅
+- Default belief graph for new users ✅
+- LangGraph reflex hook for runtime reassessments ✅
+- UI-ready CAM Visualizer (modular, embeddable) ✅
+
+--

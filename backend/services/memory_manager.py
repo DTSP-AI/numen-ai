@@ -574,3 +574,287 @@ async def get_user_preferences(
     if memories:
         return memories[0].get("metadata", {})
     return None
+
+
+# ============================================================================
+# PHASE 1: COGNITIVE ASSESSMENT MEMORY EXTENSIONS
+# ============================================================================
+
+async def store_goal_assessment(
+    user_id: str,
+    tenant_id: str,
+    agent_id: str,
+    goal_assessment: Dict[str, Any]
+):
+    """
+    Store goal assessment data in Mem0
+
+    Args:
+        user_id: User UUID
+        tenant_id: Tenant UUID
+        agent_id: Agent UUID
+        goal_assessment: GoalAssessment dict with GAS ratings
+
+    Returns:
+        Goal assessment ID
+    """
+    from database import get_pg_pool
+    import uuid
+    import json
+
+    pool = get_pg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            goal_id = str(uuid.uuid4())
+
+            await conn.execute("""
+                INSERT INTO goal_assessments (
+                    id, user_id, agent_id, tenant_id,
+                    goal_text, goal_category,
+                    gas_current_level, gas_expected_level, gas_target_level,
+                    ideal_state_rating, actual_state_rating,
+                    confidence_score, motivation_score,
+                    schema_version, intake_depth
+                )
+                VALUES (
+                    $1::uuid, $2::uuid, $3::uuid, $4::uuid,
+                    $5, $6,
+                    $7, $8, $9,
+                    $10, $11,
+                    $12, $13,
+                    $14, $15
+                )
+            """,
+                goal_id,
+                user_id,
+                agent_id,
+                tenant_id,
+                goal_assessment.get("goal_text"),
+                goal_assessment.get("goal_category", "other"),
+                goal_assessment.get("gas_current_level", -1),
+                goal_assessment.get("gas_expected_level", 0),
+                goal_assessment.get("gas_target_level", 2),
+                goal_assessment.get("ideal_state_rating", 100),
+                goal_assessment.get("actual_state_rating", 50),
+                goal_assessment.get("confidence_score", 0.5),
+                goal_assessment.get("motivation_score", 0.5),
+                "v1.0",
+                goal_assessment.get("intake_depth", "cognitive_extended")
+            )
+
+        # Also store in Mem0 for semantic retrieval
+        manager = MemoryManager(tenant_id, agent_id, {})
+
+        await manager.add_memory(
+            content=f"Goal: {goal_assessment.get('goal_text')} (Current: {goal_assessment.get('gas_current_level')}, Target: {goal_assessment.get('gas_target_level')})",
+            memory_type="goal_assessment",
+            namespace=manager.user_namespace(user_id),
+            user_id=user_id,
+            metadata={
+                "goal_id": goal_id,
+                "gas_current_level": goal_assessment.get("gas_current_level"),
+                "gap_score": goal_assessment.get("ideal_state_rating", 100) - goal_assessment.get("actual_state_rating", 50)
+            }
+        )
+
+        logger.info(f"✅ Goal assessment stored: {goal_id}")
+        return goal_id
+
+    except Exception as e:
+        logger.error(f"Failed to store goal assessment: {e}")
+        raise
+
+
+async def store_belief_graph(
+    user_id: str,
+    tenant_id: str,
+    agent_id: str,
+    belief_graph: Dict[str, Any]
+):
+    """
+    Store belief graph (CAM) in database and Mem0
+
+    Args:
+        user_id: User UUID
+        tenant_id: Tenant UUID
+        agent_id: Agent UUID
+        belief_graph: BeliefGraph dict with nodes and edges
+
+    Returns:
+        Belief graph ID
+    """
+    from database import get_pg_pool
+    import uuid
+    import json
+
+    pool = get_pg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            graph_id = str(uuid.uuid4())
+
+            await conn.execute("""
+                INSERT INTO belief_graphs (
+                    id, user_id, agent_id, tenant_id,
+                    graph_name, graph_version,
+                    nodes, edges,
+                    conflict_score, tension_nodes, core_beliefs,
+                    schema_version
+                )
+                VALUES (
+                    $1::uuid, $2::uuid, $3::uuid, $4::uuid,
+                    $5, $6,
+                    $7::jsonb, $8::jsonb,
+                    $9, $10::jsonb, $11::jsonb,
+                    $12
+                )
+            """,
+                graph_id,
+                user_id,
+                agent_id,
+                tenant_id,
+                belief_graph.get("graph_name", "User Belief System"),
+                belief_graph.get("graph_version", 1),
+                json.dumps(belief_graph.get("nodes", [])),
+                json.dumps(belief_graph.get("edges", [])),
+                belief_graph.get("conflict_score", 0.0),
+                json.dumps(belief_graph.get("tension_nodes", [])),
+                json.dumps(belief_graph.get("core_beliefs", [])),
+                "v1.0"
+            )
+
+        # Store summary in Mem0
+        manager = MemoryManager(tenant_id, agent_id, {})
+
+        limiting_beliefs = [
+            node.get("label") for node in belief_graph.get("nodes", [])
+            if node.get("node_type") == "limiting_belief"
+        ]
+
+        await manager.add_memory(
+            content=f"Limiting beliefs identified: {', '.join(limiting_beliefs[:5])}. Conflict score: {belief_graph.get('conflict_score', 0.0)}",
+            memory_type="belief_graph",
+            namespace=manager.user_namespace(user_id),
+            user_id=user_id,
+            metadata={
+                "graph_id": graph_id,
+                "conflict_score": belief_graph.get("conflict_score"),
+                "node_count": len(belief_graph.get("nodes", []))
+            }
+        )
+
+        logger.info(f"✅ Belief graph stored: {graph_id}")
+        return graph_id
+
+    except Exception as e:
+        logger.error(f"Failed to store belief graph: {e}")
+        raise
+
+
+async def store_cognitive_metric(
+    user_id: str,
+    tenant_id: str,
+    agent_id: str,
+    metric_type: str,
+    metric_value: float,
+    context_data: Optional[Dict[str, Any]] = None,
+    threshold_value: Optional[float] = None
+):
+    """
+    Store cognitive metric (emotion conflict, goal progress, etc.)
+
+    Args:
+        user_id: User UUID
+        tenant_id: Tenant UUID
+        agent_id: Agent UUID
+        metric_type: Type of metric (emotion_conflict, goal_progress, etc.)
+        metric_value: Numeric metric value
+        context_data: Additional context
+        threshold_value: Threshold for triggering action
+
+    Returns:
+        Metric ID
+    """
+    from database import get_pg_pool
+    import uuid
+    import json
+
+    pool = get_pg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            metric_id = str(uuid.uuid4())
+
+            threshold_exceeded = False
+            if threshold_value is not None and metric_value >= threshold_value:
+                threshold_exceeded = True
+
+            await conn.execute("""
+                INSERT INTO cognitive_metrics (
+                    id, user_id, agent_id, tenant_id,
+                    metric_type, metric_category,
+                    metric_value, threshold_value, threshold_exceeded,
+                    context_data, trigger_action,
+                    schema_version
+                )
+                VALUES (
+                    $1::uuid, $2::uuid, $3::uuid, $4::uuid,
+                    $5, $6,
+                    $7, $8, $9,
+                    $10::jsonb, $11,
+                    $12
+                )
+            """,
+                metric_id,
+                user_id,
+                agent_id,
+                tenant_id,
+                metric_type,
+                _get_metric_category(metric_type),
+                metric_value,
+                threshold_value,
+                threshold_exceeded,
+                json.dumps(context_data or {}),
+                _get_trigger_action(metric_type, threshold_exceeded),
+                "v1.0"
+            )
+
+        logger.info(f"✅ Cognitive metric stored: {metric_type} = {metric_value}")
+        return metric_id
+
+    except Exception as e:
+        logger.error(f"Failed to store cognitive metric: {e}")
+        raise
+
+
+def _get_metric_category(metric_type: str) -> str:
+    """Map metric type to category"""
+    emotional_types = ["emotion_conflict", "motivation_drop"]
+    behavioral_types = ["repeated_failure", "goal_progress"]
+    cognitive_types = ["belief_shift", "breakthrough"]
+
+    if metric_type in emotional_types:
+        return "emotional"
+    elif metric_type in behavioral_types:
+        return "behavioral"
+    elif metric_type in cognitive_types:
+        return "cognitive"
+    else:
+        return "emotional"
+
+
+def _get_trigger_action(metric_type: str, threshold_exceeded: bool) -> Optional[str]:
+    """Determine trigger action based on metric type and threshold"""
+    if not threshold_exceeded:
+        return None
+
+    actions = {
+        "emotion_conflict": "Initiate belief reassessment conversation",
+        "repeated_failure": "Suggest breaking goal into smaller steps",
+        "motivation_drop": "Provide encouragement and progress review",
+        "goal_progress": "Celebrate milestone achievement",
+        "belief_shift": "Acknowledge positive transformation"
+    }
+
+    return actions.get(metric_type, "Review with user")

@@ -1,0 +1,103 @@
+{
+  "graph_name": "Default Belief Map",
+  "graph_version": 1,
+  "description": "Starter belief map template for users who haven't identified specific limiting beliefs",
+  "nodes": [
+    {
+      "id": "n1",
+      "label": "I'm not good enough",
+      "node_type": "limiting_belief",
+      "emotional_valence": -0.7,
+      "centrality": 0.8,
+      "strength": 0.6,
+      "description": "Core limiting belief: feelings of inadequacy"
+    },
+    {
+      "id": "n2",
+      "label": "Success requires struggle",
+      "node_type": "core_belief",
+      "emotional_valence": -0.2,
+      "centrality": 0.7,
+      "strength": 0.5,
+      "description": "Belief that achievement must be difficult"
+    },
+    {
+      "id": "n3",
+      "label": "I don't deserve abundance",
+      "node_type": "limiting_belief",
+      "emotional_valence": -0.8,
+      "centrality": 0.6,
+      "strength": 0.7,
+      "description": "Self-worth limitation around receiving"
+    },
+    {
+      "id": "n4",
+      "label": "Change is scary and risky",
+      "node_type": "limiting_belief",
+      "emotional_valence": -0.5,
+      "centrality": 0.5,
+      "strength": 0.6,
+      "description": "Fear-based resistance to transformation"
+    },
+    {
+      "id": "n5",
+      "label": "Personal growth",
+      "node_type": "goal",
+      "emotional_valence": 0.9,
+      "centrality": 0.9,
+      "strength": 0.8,
+      "description": "Generic growth goal"
+    },
+    {
+      "id": "n6",
+      "label": "Inner peace",
+      "node_type": "outcome",
+      "emotional_valence": 1.0,
+      "centrality": 0.7,
+      "strength": 0.9,
+      "description": "Desired state of emotional balance"
+    }
+  ],
+  "edges": [
+    {
+      "source": "n1",
+      "target": "n5",
+      "relationship": "blocks",
+      "weight": 0.8,
+      "description": "Inadequacy blocks growth"
+    },
+    {
+      "source": "n2",
+      "target": "n5",
+      "relationship": "supports",
+      "weight": 0.3,
+      "description": "Struggle belief weakly supports growth but creates unnecessary suffering"
+    },
+    {
+      "source": "n3",
+      "target": "n6",
+      "relationship": "blocks",
+      "weight": 0.7,
+      "description": "Unworthiness blocks peace"
+    },
+    {
+      "source": "n4",
+      "target": "n5",
+      "relationship": "blocks",
+      "weight": 0.6,
+      "description": "Fear of change blocks growth"
+    },
+    {
+      "source": "n5",
+      "target": "n6",
+      "relationship": "causes",
+      "weight": 0.9,
+      "description": "Growth leads to inner peace"
+    }
+  ],
+  "metadata": {
+    "template_version": "1.0",
+    "created_at": "2025-10-13",
+    "usage": "Fallback template when user hasn't articulated specific beliefs during intake"
+  }
+}

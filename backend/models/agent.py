@@ -6,10 +6,14 @@ following the AGENT_CREATION_STANDARD for universal AI agent systems.
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from datetime import datetime
 from enum import Enum
 import uuid
+
+# Conditional import to avoid circular dependency
+if TYPE_CHECKING:
+    from models.cognitive_schema import CognitiveKernel
 
 
 class AgentType(str, Enum):
@@ -364,6 +368,34 @@ class AgentContract(BaseModel):
     )
     voice: Optional[VoiceConfiguration] = None
     metadata: AgentMetadata
+
+    # ========================================================================
+    # PHASE 1: Optional Cognitive Assessment Layer
+    # ========================================================================
+    cognitive_kernel_ref: Optional[str] = Field(
+        default=None,
+        description="Reference to CognitiveKernel version (e.g., 'v1.0'). "
+                    "When set, enables goal/belief assessment capabilities. "
+                    "Phase 1: Optional. Phase 3: Will become immutable."
+    )
+    goal_assessment_enabled: bool = Field(
+        default=False,
+        description="Enable Goal Attainment Scaling (GAS) and goal tracking"
+    )
+    belief_mapping_enabled: bool = Field(
+        default=False,
+        description="Enable Cognitive-Affective Mapping (CAM) for belief systems"
+    )
+    reflex_triggers_enabled: bool = Field(
+        default=False,
+        description="Enable automatic reassessment triggers based on thresholds"
+    )
+
+    # Optional: Store full cognitive kernel config inline (alternative to ref)
+    cognitive_kernel_config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Inline CognitiveKernel configuration (alternative to cognitive_kernel_ref)"
+    )
 
     @validator('type')
     def validate_type(cls, v):

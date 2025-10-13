@@ -25,7 +25,7 @@ interface AgentAsset {
 export default function ChatPage() {
   const searchParams = useSearchParams()
   const agentId = searchParams.get("agentId")
-  const sessionId = searchParams.get("sessionId")
+  const sessionIdParam = searchParams.get("sessionId")
 
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
@@ -34,17 +34,53 @@ export default function ChatPage() {
   const [schedule, setSchedule] = useState([])
   const [affirmations, setAffirmations] = useState([])
   const [agentName, setAgentName] = useState("Your Guide")
+  const [agentAvatar, setAgentAvatar] = useState<string | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [sessionId, setSessionId] = useState<string | null>(sessionIdParam)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const userId = "00000000-0000-0000-0000-000000000001"
+  const tenantId = "00000000-0000-0000-0000-000000000001"
+
+  // Create session if not provided
+  useEffect(() => {
+    const createSession = async () => {
+      if (!sessionIdParam && agentId) {
+        try {
+          const response = await fetch("http://localhost:8003/api/sessions/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-tenant-id": tenantId,
+              "x-user-id": userId
+            },
+            body: JSON.stringify({
+              user_id: userId,
+              agent_id: agentId
+            })
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            setSessionId(data.id)
+          }
+        } catch (error) {
+          console.error("Failed to create session:", error)
+        }
+      }
+    }
+
+    createSession()
+  }, [agentId, sessionIdParam])
 
   useEffect(() => {
-    loadChatHistory()
-    loadAgentAssets()
-    loadAgentInfo()
+    if (sessionId) {
+      loadChatHistory()
+      loadAgentAssets()
+      loadAgentInfo()
+    }
   }, [agentId, sessionId])
 
   useEffect(() => {
@@ -59,7 +95,7 @@ export default function ChatPage() {
     if (!sessionId) return
 
     try {
-      const response = await fetch(`http://localhost:8003/api/sessions/${sessionId}/messages`)
+      const response = await fetch(`http://localhost:8003/api/chat/sessions/${sessionId}/messages`)
       const data = await response.json()
       setMessages(data.messages || [])
     } catch (error) {
@@ -72,7 +108,7 @@ export default function ChatPage() {
 
     try {
       // Load affirmations created by this agent
-      const affirmationsRes = await fetch(`http://localhost:8003/api/affirmations/agent/${agentId}`)
+      const affirmationsRes = await fetch(`http://localhost:8003/api/chat/affirmations/agent/${agentId}`)
       const affirmationsData = await affirmationsRes.json()
       setAffirmations(affirmationsData.affirmations || [])
 
@@ -100,11 +136,30 @@ export default function ChatPage() {
     if (!agentId) return
 
     try {
-      const response = await fetch(`http://localhost:8003/api/agents/${agentId}`)
+      const response = await fetch(`http://localhost:8003/api/agents/${agentId}`, {
+        headers: {
+          'x-tenant-id': tenantId,
+          'x-user-id': userId
+        }
+      })
+
+      if (!response.ok) {
+        console.error(`Agent not found: ${agentId} (Status: ${response.status})`)
+        setAgentName("Agent Not Found")
+        return
+      }
+
       const data = await response.json()
       setAgentName(data.name || "Your Guide")
+
+      // Extract avatar URL from contract
+      const avatarUrl = data.contract?.identity?.avatar_url
+      if (avatarUrl) {
+        setAgentAvatar(avatarUrl)
+      }
     } catch (error) {
       console.error("Failed to load agent info:", error)
+      setAgentName("Your Guide")
     }
   }
 
@@ -123,22 +178,27 @@ export default function ChatPage() {
     setIsTyping(true)
 
     try {
-      const response = await fetch(`http://localhost:8003/api/sessions/${sessionId}/message`, {
+      const response = await fetch(`http://localhost:8003/api/chat/sessions/${sessionId}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-tenant-id": tenantId,
+          "x-user-id": userId
+        },
         body: JSON.stringify({
-          message: userMessage.content,
+          user_id: userId,
           agent_id: agentId,
+          message: userMessage.content,
         }),
       })
 
       const data = await response.json()
 
       const assistantMessage: Message = {
-        id: `msg-${Date.now()}-assistant`,
+        id: data.agent_response?.id || `msg-${Date.now()}-assistant`,
         role: "assistant",
-        content: data.response || "I'm here to help guide you.",
-        timestamp: new Date().toISOString(),
+        content: data.agent_response?.content || "I'm here to help guide you.",
+        timestamp: data.agent_response?.timestamp || new Date().toISOString(),
       }
 
       setMessages((prev) => [...prev, assistantMessage])
@@ -178,15 +238,23 @@ export default function ChatPage() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -320, opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="w-80 bg-white/10 backdrop-blur-xl border-r border-white/20 overflow-y-auto flex-shrink-0"
+            className="hidden md:block w-80 bg-white/10 backdrop-blur-xl border-r border-white/20 overflow-y-auto flex-shrink-0"
           >
             <div className="p-6 space-y-6">
               {/* Agent Info */}
               <div className="glass-card p-6 rounded-2xl">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-xl font-bold">
-                    {agentName[0]}
-                  </div>
+                  {agentAvatar ? (
+                    <img
+                      src={agentAvatar}
+                      alt={agentName}
+                      className="w-12 h-12 rounded-full object-cover ring-2 ring-white/20"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-xl font-bold">
+                      {agentName[0]}
+                    </div>
+                  )}
                   <div>
                     <h3 className="text-white font-semibold text-lg">{agentName}</h3>
                     <p className="text-white/60 text-sm">Your Manifestation Guide</p>
@@ -282,29 +350,6 @@ export default function ChatPage() {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-white/10 backdrop-blur-xl border-b border-white/20 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              <h1 className="text-2xl font-bold text-white">Chat with {agentName}</h1>
-            </div>
-            <Button
-              variant="outline"
-              className="text-white border-white/30 hover:bg-white/10"
-              onClick={() => window.location.href = "/dashboard"}
-            >
-              Dashboard
-            </Button>
-          </div>
-        </header>
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto px-6 py-8">
@@ -340,9 +385,17 @@ export default function ChatPage() {
                 >
                   <div className="flex items-start gap-3">
                     {message.role === "assistant" && (
-                      <div className="w-8 h-8 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                        {agentName[0]}
-                      </div>
+                      agentAvatar ? (
+                        <img
+                          src={agentAvatar}
+                          alt={agentName}
+                          className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20 flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                          {agentName[0]}
+                        </div>
+                      )
                     )}
                     <div className="flex-1">
                       <p className="text-white leading-relaxed whitespace-pre-wrap">
@@ -370,9 +423,17 @@ export default function ChatPage() {
               >
                 <div className="glass-card rounded-2xl p-5">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-sm font-bold">
-                      {agentName[0]}
-                    </div>
+                    {agentAvatar ? (
+                      <img
+                        src={agentAvatar}
+                        alt={agentName}
+                        className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-sm font-bold">
+                        {agentName[0]}
+                      </div>
+                    )}
                     <div className="flex gap-1">
                       <motion.div
                         animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}

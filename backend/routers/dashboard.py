@@ -40,7 +40,7 @@ async def get_user_dashboard(
             # Get user's agents
             agents_rows = await conn.fetch("""
                 SELECT id, name, type, status, interaction_count,
-                       last_interaction_at, created_at
+                       last_interaction_at, created_at, contract
                 FROM agents
                 WHERE owner_id = $1::uuid
                   AND tenant_id = $2::uuid
@@ -55,7 +55,8 @@ async def get_user_dashboard(
                     "type": row["type"],
                     "interaction_count": row["interaction_count"],
                     "last_interaction_at": row["last_interaction_at"].isoformat() if row["last_interaction_at"] else None,
-                    "created_at": row["created_at"].isoformat()
+                    "created_at": row["created_at"].isoformat(),
+                    "contract": row["contract"]
                 }
                 for row in agents_rows
             ]
