@@ -4,19 +4,23 @@ Intake Router - Baseline Flow Entry Point
 Processes user intake via IntakeAgent (LangGraph) and generates normalized intake contract.
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Depends
 import logging
-import json
 
 from models.schemas import IntakeRequest, IntakeContract
-from agents.intake_agent import IntakeAgent
+from dependencies import get_tenant_id, get_user_id
+# from agents.intake_agent import IntakeAgent  # Not needed for intake/assist endpoint
 from pydantic import BaseModel
+from openai import OpenAI
+from config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Global intake agent instance
-intake_agent = IntakeAgent()
+# OpenAI client for AI assist endpoint
+# Check both lowercase and uppercase env var names for consistency
+_openai_api_key = settings.openai_api_key or settings.OPENAI_API_KEY
+openai_client = OpenAI(api_key=_openai_api_key)
 
 
 class IntakeAssistRequest(BaseModel):
@@ -30,7 +34,11 @@ class IntakeAssistResponse(BaseModel):
 
 
 @router.post("/intake/process", response_model=IntakeContract)
-async def process_intake(request: IntakeRequest):
+async def process_intake(
+    request: IntakeRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    user_id: str = Depends(get_user_id)
+):
     """
     Process user intake and generate normalized contract
 
@@ -60,7 +68,11 @@ async def process_intake(request: IntakeRequest):
     }
     """
     try:
-        logger.info(f"Processing intake for user: {request.user_id}")
+        # Use user_id from dependency or fallback to request
+        if not user_id and request.user_id:
+            user_id = request.user_id
+        
+        logger.info(f"Processing intake for user: {user_id}, tenant: {tenant_id}")
 
         # Extract answers
         answers = request.answers
@@ -98,22 +110,14 @@ async def process_intake(request: IntakeRequest):
         )
 
         # Store intake contract in semantic memory
+        # NOTE: Skipping memory storage at intake stage - will be stored when agent is created
+        # MemoryManager requires agent_id which doesn't exist yet during intake
         try:
-            from services.memory_manager import MemoryManager
-            memory_manager = MemoryManager()
-            await memory_manager.initialize()
-
-            await memory_manager.embed_and_upsert(
-                user_id=request.user_id,
-                agent_id=None,  # No agent yet
-                session_id=None,  # No session yet
-                content=json.dumps(intake_contract.model_dump()),
-                meta={"type": "intake_contract", "goals": normalized_goals}
-            )
-
-            logger.debug("Stored intake contract in semantic memory")
+            # For now, skip memory storage until agent is created
+            # The agent creation process will handle storing intake data
+            logger.debug("Skipping memory storage at intake - will be stored during agent creation")
         except Exception as mem_error:
-            logger.warning(f"Failed to store in memory: {mem_error}")
+            logger.warning(f"Memory storage skipped: {mem_error}")
             # Non-blocking - continue even if memory storage fails
 
         logger.info(f"✅ Intake contract generated for user: {request.user_id}")
@@ -152,8 +156,16 @@ async def intake_assist(request: IntakeAssistRequest):
                 detail="Text field cannot be empty"
             )
 
-        # Call IntakeAgent to refine text
-        refined_text = await intake_agent.refine_text(request.text)
+        # Use OpenAI to refine text
+        response = openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Polish and improve this user input for a manifestation intake form. Make it clear, positive, and actionable. Keep it concise."},
+                {"role": "user", "content": request.text}
+            ],
+            max_tokens=200
+        )
+        refined_text = response.choices[0].message.content
 
         logger.info(f"✅ Text refined successfully")
         return IntakeAssistResponse(suggestion=refined_text)

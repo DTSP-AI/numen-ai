@@ -1,4 +1,5 @@
 from elevenlabs.client import ElevenLabs
+from elevenlabs.types import VoiceSettings
 from typing import AsyncIterator, Optional, List, Dict, Any
 import logging
 
@@ -63,18 +64,25 @@ class ElevenLabsService:
                 self.voice_configs["default"]
             )
 
-            # Generate audio (ElevenLabs 1.8.0 API)
+            # Create voice settings object
+            voice_settings_obj = VoiceSettings(
+                stability=voice_config["stability"],
+                similarity_boost=voice_config["similarity_boost"]
+            )
+
+            # Generate audio with voice settings
             audio = self.client.generate(
                 text=text,
                 voice=voice_config["voice_id"],
-                model=model
+                model=model,
+                voice_settings=voice_settings_obj
             )
 
             # Stream audio chunks
             for chunk in audio:
                 yield chunk
 
-            logger.info(f"Generated speech for voice: {voice_preference}")
+            logger.info(f"Generated speech for voice: {voice_preference} (stability={voice_config['stability']}, similarity_boost={voice_config['similarity_boost']})")
 
         except Exception as e:
             logger.error(f"Failed to generate speech: {e}")
@@ -96,18 +104,25 @@ class ElevenLabsService:
                 self.voice_configs["default"]
             )
 
-            # Generate complete audio
+            # Create voice settings object
+            voice_settings_obj = VoiceSettings(
+                stability=voice_config["stability"],
+                similarity_boost=voice_config["similarity_boost"]
+            )
+
+            # Generate complete audio with voice settings
             audio_bytes = self.client.generate(
                 text=text,
                 voice=voice_config["voice_id"],
-                model=model
+                model=model,
+                voice_settings=voice_settings_obj
             )
 
             # Convert generator to bytes if needed
             if hasattr(audio_bytes, '__iter__'):
                 audio_bytes = b"".join(audio_bytes)
 
-            logger.info(f"Generated complete audio ({len(audio_bytes)} bytes)")
+            logger.info(f"Generated complete audio for {voice_preference} (stability={voice_config['stability']}, similarity_boost={voice_config['similarity_boost']}, {len(audio_bytes)} bytes)")
 
             return audio_bytes
 
@@ -128,18 +143,25 @@ class ElevenLabsService:
         Used for voice previews during agent creation.
         """
         try:
-            # Generate complete audio with specified voice_id
+            # Create voice settings object
+            voice_settings_obj = VoiceSettings(
+                stability=stability,
+                similarity_boost=similarity_boost
+            )
+
+            # Generate complete audio with specified voice_id and settings
             audio_bytes = self.client.generate(
                 text=text,
                 voice=voice_id,
-                model=model
+                model=model,
+                voice_settings=voice_settings_obj
             )
 
             # Convert generator to bytes if needed
             if hasattr(audio_bytes, '__iter__'):
                 audio_bytes = b"".join(audio_bytes)
 
-            logger.info(f"Generated audio with voice {voice_id} ({len(audio_bytes)} bytes)")
+            logger.info(f"Generated audio with voice {voice_id} (stability={stability}, similarity_boost={similarity_boost}, {len(audio_bytes)} bytes)")
 
             return audio_bytes
 

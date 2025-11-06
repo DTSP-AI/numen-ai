@@ -187,8 +187,8 @@ export default function DashboardPage() {
 
   const handleAskQuestions = () => {
     setShowPlanReview(false)
-    // TODO: Implement Q&A flow with agent
-    alert("Q&A with your agent coming soon!")
+    // TODO: Implement Q&A flow with guide
+    alert("Q&A with your guide coming soon!")
   }
 
   // Show plan review & consent (Phase 3)
@@ -198,7 +198,7 @@ export default function DashboardPage() {
     return (
       <PlanReview
         sessionId={sessionId}
-        agentName={agent?.name || "Your Agent"}
+        agentName={agent?.name || "Your Guide"}
         protocol={{
           daily_practices: 4,
           visualizations: 3,
@@ -251,7 +251,7 @@ export default function DashboardPage() {
             className="text-center mb-8"
           >
             <div className="text-6xl mb-4">✨</div>
-            <h1 className="text-5xl font-bold text-white mb-3">Agent Created!</h1>
+            <h1 className="text-5xl font-bold text-white mb-3">Guide Created!</h1>
             <p className="text-xl text-white/80">Your personalized guide is ready</p>
           </motion.div>
 
@@ -327,7 +327,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
           <div onClick={() => setActiveTab("overview")}>
             <DashboardStatCard
-              label="Active Agents"
+              label="Active Guides"
               value={dashboardData?.summary?.total_agents || 0}
               color="#FFD33D"
               delay={0.1}
@@ -399,12 +399,12 @@ export default function DashboardPage() {
                 </section>
               )}
 
-              {/* Agents */}
+              {/* Guides */}
               <section>
-                <h2 className="text-3xl font-bold text-white mb-6">Your Agents</h2>
+                <h2 className="text-3xl font-bold text-white mb-6">Your Guides</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {dashboardData?.agents?.map((agent) => (
-                    <AgentCard key={agent.id} agent={agent} />
+                    <AgentCard key={agent.id} agent={agent} onUpdate={loadDashboard} />
                   )) || null}
                 </div>
               </section>

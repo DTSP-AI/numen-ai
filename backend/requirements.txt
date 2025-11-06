@@ -18,17 +18,23 @@ elevenlabs==1.8.0
 
 # Memory & Vector DB
 mem0ai==0.1.17
-qdrant-client==1.10.0
 
-# Databases
+# Databases (PostgreSQL only - Supabase)
 psycopg2-binary==2.9.9
 asyncpg==0.29.0
-redis==5.0.8
+
+# OPTIONAL/DEPRECATED: Not used in current architecture
+# redis==5.0.8          # Replaced by PostgreSQL sessions table
+# qdrant-client==1.10.0  # Replaced by Supabase pgvector + Mem0
 
 # Config & validation
 pydantic==2.9.0
 pydantic-settings==2.5.2
 python-dotenv==1.0.1
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
 
 # Async HTTP
 aiohttp==3.10.5

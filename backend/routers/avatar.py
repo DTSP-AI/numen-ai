@@ -1,23 +1,22 @@
 """
-Avatar Generation Router - GPT-Image-1 + Supabase Storage
+Avatar Generation Router - DALL-E-3 + Supabase Storage
 
 Provides endpoints for generating or uploading agent avatars with tenant isolation.
-Uses Supabase Storage for true multi-tenant security.
+Uses Supabase Storage for true multi-tenant security with local filesystem fallback.
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Header
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from pydantic import BaseModel
 from typing import Optional
 import logging
 import uuid
 from pathlib import Path
-import os
 import httpx
 import base64
 from datetime import datetime
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 from services.supabase_storage import supabase_storage
+from dependencies import get_tenant_id, get_user_id
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -47,8 +46,8 @@ class AvatarResponse(BaseModel):
 @router.post("/avatar/generate", response_model=AvatarResponse)
 async def generate_avatar(
     request: AvatarGenerateRequest,
-    x_tenant_id: Optional[str] = Header(None, alias="x-tenant-id"),
-    x_user_id: Optional[str] = Header(None, alias="x-user-id")
+    tenant_id: str = Depends(get_tenant_id),
+    user_id: str = Depends(get_user_id)
 ):
     """
     Generate agent avatar using DALL-E-3
@@ -56,9 +55,6 @@ async def generate_avatar(
     Raises 500 if OpenAI is not configured (no silent fallback).
     Saves image to Supabase with tenant isolation.
     """
-    # Enforce tenant isolation
-    tenant_id = x_tenant_id or "00000000-0000-0000-0000-000000000001"  # Default for dev
-    user_id = x_user_id or "00000000-0000-0000-0000-000000000001"
 
     logger.info(f"Avatar generation requested by tenant {tenant_id}, user {user_id}: {request.prompt}")
 
@@ -110,7 +106,7 @@ async def generate_avatar(
 
             if response.status_code != 200:
                 error_detail = response.text
-                logger.error(f"GPT-Image-1 API error (status {response.status_code}): {error_detail}")
+                logger.error(f"DALL-E-3 API error (status {response.status_code}): {error_detail}")
                 raise HTTPException(
                     status_code=response.status_code,
                     detail=f"Image generation failed: {error_detail}"
@@ -145,7 +141,8 @@ async def generate_avatar(
 
             # Fallback to local filesystem if Supabase unavailable or failed
             if not avatar_url:
-                avatars_base = Path("backend/avatars")
+                # Use path relative to this file's location
+                avatars_base = Path(__file__).parent.parent / "avatars"
                 tenant_dir = avatars_base / tenant_id
                 tenant_dir.mkdir(parents=True, exist_ok=True)
                 file_path = tenant_dir / unique_filename
@@ -195,17 +192,14 @@ async def generate_avatar(
 @router.post("/avatar/upload")
 async def upload_avatar(
     file: UploadFile = File(...),
-    x_tenant_id: Optional[str] = Header(None, alias="x-tenant-id"),
-    x_user_id: Optional[str] = Header(None, alias="x-user-id")
+    tenant_id: str = Depends(get_tenant_id),
+    user_id: str = Depends(get_user_id)
 ):
     """
     Upload custom avatar image
 
     Validates and stores image locally with tenant isolation.
     """
-    # Enforce tenant isolation
-    tenant_id = x_tenant_id or "00000000-0000-0000-0000-000000000001"  # Default for dev
-    user_id = x_user_id or "00000000-0000-0000-0000-000000000001"
 
     logger.info(f"Avatar upload requested by tenant {tenant_id}: {file.filename}")
 
@@ -250,7 +244,8 @@ async def upload_avatar(
 
         # Fallback to local filesystem if Supabase unavailable or failed
         if not avatar_url:
-            avatars_base = Path("backend/avatars")
+            # Use path relative to this file's location
+            avatars_base = Path(__file__).parent.parent / "avatars"
             tenant_dir = avatars_base / tenant_id
             tenant_dir.mkdir(parents=True, exist_ok=True)
             file_path = tenant_dir / unique_filename

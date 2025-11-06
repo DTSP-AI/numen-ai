@@ -6,9 +6,10 @@ import logging
 from pathlib import Path
 
 from config import settings
-from routers import sessions, contracts, therapy, protocols, agents, affirmations, dashboard, voices, avatar, chat, livekit, intake
+from routers import sessions, contracts, protocols, agents, affirmations, dashboard, voices, avatar, chat, livekit, intake
+# auth router excluded - not part of baseline working code
+# therapy router disabled - TherapyAgent module not implemented
 from database import init_db, close_db
-# from services.memory import MemoryService  # TODO: Removed - using MemoryManager now
 from services.supabase_storage import supabase_storage
 
 
@@ -96,14 +97,83 @@ app.add_middleware(
 # Health check endpoint
 @app.get("/health")
 async def health_check():
+    """Comprehensive health check showing all service statuses"""
+    from database import pg_pool
+
+    services = {}
+
+    # Check database
+    if pg_pool:
+        try:
+            async with pg_pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
+            services["database"] = {"status": "connected", "type": "supabase_postgresql"}
+        except Exception as e:
+            services["database"] = {"status": "error", "error": str(e)}
+    else:
+        services["database"] = {"status": "not_initialized"}
+
+    # Check OpenAI API key
+    openai_key = settings.openai_api_key or settings.OPENAI_API_KEY
+    services["openai"] = {
+        "status": "configured" if openai_key else "missing",
+        "required": True
+    }
+
+    # Check optional services
+    elevenlabs_key = settings.elevenlabs_api_key or settings.ELEVENLABS_API_KEY
+    services["elevenlabs"] = {
+        "status": "configured" if elevenlabs_key else "not_configured",
+        "required": False,
+        "feature": "voice_synthesis"
+    }
+
+    deepgram_key = settings.deepgram_api_key or settings.DEEPGRAM_API_KEY
+    services["deepgram"] = {
+        "status": "configured" if deepgram_key else "not_configured",
+        "required": False,
+        "feature": "speech_to_text"
+    }
+
+    livekit_key = settings.livekit_api_key or settings.LIVEKIT_API_KEY
+    livekit_secret = settings.livekit_api_secret or settings.LIVEKIT_API_SECRET
+    services["livekit"] = {
+        "status": "configured" if (livekit_key and livekit_secret) else "not_configured",
+        "required": False,
+        "feature": "realtime_voice"
+    }
+
+    mem0_key = settings.mem0_api_key or settings.MEM0_API_KEY
+    services["mem0"] = {
+        "status": "configured" if mem0_key else "local_mode",
+        "required": False,
+        "feature": "semantic_memory"
+    }
+
+    # Overall health
+    required_services = [s for s in services.values() if s.get("required", False)]
+    all_required_ok = all(s["status"] in ["connected", "configured"] for s in required_services)
+
+    overall_status = "healthy" if all_required_ok else "degraded"
+
     return {
-        "status": "healthy",
+        "status": overall_status,
+        "version": "1.0.0",
         "environment": settings.environment,
-        "version": "1.0.0"
+        "services": services,
+        "capabilities": {
+            "text_chat": True,
+            "voice_synthesis": services["elevenlabs"]["status"] == "configured",
+            "speech_recognition": services["deepgram"]["status"] == "configured",
+            "realtime_voice": services["livekit"]["status"] == "configured",
+            "semantic_memory": True
+        }
     }
 
 
 # Include routers
+# Authentication must be first so other routers can use the dependencies
+# app.include_router(auth.router, tags=["authentication"])  # Disabled - not part of baseline working code
 app.include_router(intake.router, prefix="/api", tags=["intake"])
 app.include_router(agents.router, prefix="/api", tags=["agents"])
 app.include_router(voices.router, prefix="/api", tags=["voices"])
@@ -112,16 +182,18 @@ app.include_router(affirmations.router, prefix="/api", tags=["affirmations"])
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
 app.include_router(contracts.router, prefix="/api/contracts", tags=["contracts"])
-app.include_router(therapy.router, prefix="/api/therapy", tags=["therapy"])
+# app.include_router(therapy.router, prefix="/api/therapy", tags=["therapy"])  # Disabled - TherapyAgent not implemented
 app.include_router(protocols.router, prefix="/api/protocols", tags=["protocols"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(livekit.router, prefix="/api/livekit", tags=["livekit"])
 
 # Create directories BEFORE mounting to avoid race conditions
-audio_dir = Path("backend/audio_files")
+# Use paths relative to this file's location
+base_dir = Path(__file__).parent
+audio_dir = base_dir / "audio_files"
 audio_dir.mkdir(parents=True, exist_ok=True)
 
-avatars_dir = Path("backend/avatars")
+avatars_dir = base_dir / "avatars"
 avatars_dir.mkdir(parents=True, exist_ok=True)
 
 # Mount static files for audio (after directory creation)

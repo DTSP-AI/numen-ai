@@ -4,7 +4,7 @@ from typing import Literal, Dict, Optional
 from uuid import uuid4
 import logging
 
-from agents.manifestation_protocol_agent import ManifestationProtocolAgent
+from agents.guide_agent.guide_sub_agents.manifestation_protocol_agent import ManifestationProtocolAgent
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

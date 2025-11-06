@@ -79,8 +79,8 @@ class AudioSynthesisService:
             # Generate URL (in production, upload to S3/Azure Blob)
             audio_url = f"/audio/{audio_filename}"
 
-            # Update database
-            await self._update_affirmation_audio(affirmation_id, audio_url, len(audio_data))
+            # Update database with duration based on text length
+            await self._update_affirmation_audio(affirmation_id, audio_url, text, len(audio_data))
 
             logger.info(f"✅ Audio synthesized: {audio_filename}")
             return audio_url
@@ -195,14 +195,16 @@ class AudioSynthesisService:
         self,
         affirmation_id: str,
         audio_url: str,
+        text: str,
         audio_size_bytes: int
     ):
-        """Update affirmation record with audio URL"""
+        """Update affirmation record with audio URL and duration"""
         pool = get_pg_pool()
 
         try:
-            # Calculate duration (rough estimate: 150 words per minute, 5 chars per word)
-            estimated_duration_seconds = (len(audio_url) * 60) // (150 * 5)
+            # Calculate duration based on word count (150 words per minute average speaking rate)
+            word_count = len(text.split())
+            estimated_duration_seconds = max(1, int((word_count * 60) / 150))
 
             async with pool.acquire() as conn:
                 await conn.execute("""

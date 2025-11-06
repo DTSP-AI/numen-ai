@@ -5,7 +5,7 @@ This module defines the complete agent JSON contract specification
 following the AGENT_CREATION_STANDARD for universal AI agent systems.
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, model_validator
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from datetime import datetime
 from enum import Enum
@@ -404,12 +404,21 @@ class AgentContract(BaseModel):
             raise ValueError(f'type must be one of {list(AgentType.__members__.values())}')
         return v
 
-    @validator('voice')
-    def validate_voice_for_voice_agents(cls, v, values):
-        """Voice agents must have voice configuration"""
-        if values.get('type') == AgentType.VOICE and v is None:
-            raise ValueError('Voice agents must have voice configuration')
-        return v
+    @model_validator(mode='after')
+    def validate_voice_for_voice_agents(self):
+        """Voice agents and agents with voice_enabled must have voice configuration"""
+        # Check if voice is required
+        requires_voice = (
+            self.type == AgentType.VOICE or
+            (self.configuration and self.configuration.voice_enabled)
+        )
+
+        if requires_voice and self.voice is None:
+            raise ValueError(
+                'Voice configuration is required for voice agents or when voice_enabled=True. '
+                'Provide a VoiceConfiguration with at least voice_id and provider.'
+            )
+        return self
 
     class Config:
         json_schema_extra = {

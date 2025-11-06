@@ -7,11 +7,12 @@ Implements Dashboard Agent functionality:
 - Analytics and insights
 """
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Depends
 from typing import Dict, Any, List
 import logging
 
 from database import get_pg_pool
+from dependencies import get_user_id, get_tenant_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -20,7 +21,7 @@ router = APIRouter()
 @router.get("/dashboard/user/{user_id}")
 async def get_user_dashboard(
     user_id: str,
-    tenant_id: str = Header(None, alias="x-tenant-id")
+    tenant_id: str = Depends(get_tenant_id)
 ):
     """
     Get complete user dashboard
@@ -148,7 +149,7 @@ async def get_user_dashboard(
 
 @router.post("/dashboard/schedule")
 async def create_scheduled_session(
-    user_id: str = Header(..., alias="x-user-id"),
+    user_id: str = Depends(get_user_id),
     affirmation_id: str = None,
     script_id: str = None,
     scheduled_at: str = None,

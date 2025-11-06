@@ -19,13 +19,20 @@ async def init_db():
         # Use Supabase connection string if provided, otherwise local PostgreSQL
         if settings.supabase_db_url:
             logger.info("Connecting to Supabase PostgreSQL...")
-            pg_pool = await asyncpg.create_pool(
-                dsn=settings.supabase_db_url,
-                min_size=2,
-                max_size=10,
-                statement_cache_size=0  # Disable prepared statements for pgbouncer/pooler
-            )
-            logger.info("Supabase PostgreSQL connection pool created")
+            try:
+                pg_pool = await asyncpg.create_pool(
+                    dsn=settings.supabase_db_url,
+                    min_size=2,
+                    max_size=10,
+                    statement_cache_size=0,  # Disable prepared statements for pgbouncer/pooler
+                    timeout=10  # 10 second timeout
+                )
+                logger.info("Supabase PostgreSQL connection pool created")
+            except Exception as e:
+                logger.error(f"Failed to connect to Supabase: {e}")
+                logger.warning("⚠️  Starting in degraded mode - database features will be unavailable")
+                logger.warning("⚠️  Please check your SUPABASE_DB_URL in .env and ensure your Supabase project is active")
+                return  # Exit early, server will start without DB
         else:
             logger.info("Connecting to local PostgreSQL...")
             pg_pool = await asyncpg.create_pool(
@@ -39,7 +46,11 @@ async def init_db():
             )
             logger.info("Local PostgreSQL connection pool created")
 
-        # Create tables
+        # Create tables (only if pool was created successfully)
+        if not pg_pool:
+            logger.warning("Skipping table creation - no database connection")
+            return
+
         async with pg_pool.acquire() as conn:
             # Enable pgvector extension for vector similarity search
             await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -65,6 +76,7 @@ async def init_db():
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     tenant_id UUID REFERENCES tenants(id),
                     email VARCHAR(255) UNIQUE NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
                     name VARCHAR(255),
                     status VARCHAR(20) DEFAULT 'active',
                     created_at TIMESTAMP DEFAULT NOW(),

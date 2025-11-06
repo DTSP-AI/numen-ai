@@ -27,7 +27,7 @@ export default function CreationPage() {
     },
     {
       id: "synthesize",
-      title: "Synthesizing Your Agent's Wisdom",
+      title: "Synthesizing Your Guide's Wisdom",
       description: "Channeling your guide's unique voice and approach",
       status: "pending"
     },
@@ -51,7 +51,7 @@ export default function CreationPage() {
 
   useEffect(() => {
     if (!agentId) {
-      setError("No agent selected. Please create an agent first.")
+      setError("No guide selected. Please create a guide first.")
       return
     }
 
@@ -225,7 +225,7 @@ export default function CreationPage() {
           transition={{ delay: 1 }}
           className="text-center mt-12 text-white/60 text-sm"
         >
-          <p>This process is being guided by your personalized agent</p>
+          <p>This process is being guided by your personalized guide</p>
           <p className="mt-2">Each affirmation is crafted uniquely for your journey</p>
         </motion.div>
       </div>

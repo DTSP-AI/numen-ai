@@ -114,7 +114,7 @@ export default function ChatPage() {
   if (!agent) {
     return (
       <div className="min-h-screen gradient-kurzgesagt flex items-center justify-center">
-        <div className="text-white text-xl">Agent not found</div>
+        <div className="text-white text-xl">Guide not found</div>
       </div>
     )
   }

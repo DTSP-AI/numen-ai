@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { MessageBubble } from "@/components/MessageBubble"
-import { VoiceControls } from "@/components/VoiceControls"
+import { resolveAvatarUrl } from "@/lib/avatar-utils"
 
 interface Message {
   id: string
@@ -35,6 +35,8 @@ export function ChatInterface({
   const [isTyping, setIsTyping] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [agentAvatar, setAgentAvatar] = useState<string | null>(null)
+  const [isVoiceConnected, setIsVoiceConnected] = useState(false)
+  const [isVoiceMuted, setIsVoiceMuted] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -77,7 +79,8 @@ export function ChatInterface({
         const data = await response.json()
         const avatarUrl = data.contract?.identity?.avatar_url
         if (avatarUrl) {
-          setAgentAvatar(avatarUrl)
+          // Resolve relative URLs to absolute URLs
+          setAgentAvatar(resolveAvatarUrl(avatarUrl))
         }
       }
     } catch (error) {
@@ -142,10 +145,25 @@ export function ChatInterface({
     }
   }
 
+  const connectToVoice = async () => {
+    // TODO: Implement LiveKit voice connection
+    console.log("Voice connection requested:", { agentId, sessionId, agentVoiceId })
+    setIsVoiceConnected(true)
+  }
+
+  const disconnectFromVoice = () => {
+    setIsVoiceConnected(false)
+    setIsVoiceMuted(false)
+  }
+
+  const toggleVoiceMute = () => {
+    setIsVoiceMuted(!isVoiceMuted)
+  }
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="glass-card border-b border-white/20 px-6 py-4 flex items-center justify-between">
+      {/* Header - Hidden on mobile */}
+      <div className="hidden md:flex glass-card border-b border-white/20 px-6 py-4 items-center justify-between">
         <div className="flex items-center gap-4">
           {agentAvatar ? (
             <img
@@ -163,13 +181,6 @@ export function ChatInterface({
             <p className="text-sm text-white/60">Your Manifestation Guide</p>
           </div>
         </div>
-
-        {/* Voice Controls */}
-        <VoiceControls
-          agentId={agentId}
-          sessionId={sessionId}
-          voiceId={agentVoiceId}
-        />
       </div>
 
       {/* Messages Area */}
@@ -261,6 +272,61 @@ export function ChatInterface({
             className="flex-1 resize-none bg-white/10 border-white/20 text-white placeholder:text-white/40 rounded-xl focus:ring-2 focus:ring-kurzgesagt-purple min-h-[60px] max-h-[200px]"
             rows={1}
           />
+
+          {/* Voice Chat Button */}
+          {!isVoiceConnected ? (
+            <motion.button
+              onClick={connectToVoice}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-gradient-to-r from-kurzgesagt-purple to-kurzgesagt-coral text-white p-4 rounded-xl hover:shadow-lg transition-all"
+              title="Start Voice Chat"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+            </motion.button>
+          ) : (
+            <div className="flex gap-2">
+              {/* Mute/Unmute Button */}
+              <motion.button
+                onClick={toggleVoiceMute}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className={`p-4 rounded-xl transition-all ${
+                  isVoiceMuted
+                    ? "bg-red-500 hover:bg-red-600"
+                    : "bg-white/20 hover:bg-white/30"
+                } text-white`}
+                title={isVoiceMuted ? "Unmute" : "Mute"}
+              >
+                {isVoiceMuted ? (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                )}
+              </motion.button>
+
+              {/* End Call Button */}
+              <motion.button
+                onClick={disconnectFromVoice}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-red-500 hover:bg-red-600 text-white p-4 rounded-xl transition-all"
+                title="End Call"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" />
+                </svg>
+              </motion.button>
+            </div>
+          )}
+
           <Button
             onClick={sendMessage}
             disabled={!inputValue.trim() || isSending}

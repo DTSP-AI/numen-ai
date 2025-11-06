@@ -54,12 +54,12 @@ export function MessageBubble({ message, isLatest, agentAvatar, agentName }: Mes
         agentAvatar ? (
           <img
             src={agentAvatar}
-            alt={agentName || "Agent"}
+            alt={agentName || "Guide"}
             className="w-16 h-16 rounded-full object-cover ring-2 ring-white/20 flex-shrink-0 mt-1"
           />
         ) : (
           <div className="w-16 h-16 rounded-full gradient-purple-aqua flex items-center justify-center text-white text-xl font-bold flex-shrink-0 mt-1">
-            {agentName?.[0] || "A"}
+            {agentName?.[0] || "G"}
           </div>
         )
       )}

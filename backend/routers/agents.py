@@ -10,8 +10,8 @@ Implements full agent lifecycle management via REST API:
 - POST   /agents/{id}/chat    → Chat with agent
 """
 
-from fastapi import APIRouter, HTTPException, Header, Query
-from typing import Optional, List
+from fastapi import APIRouter, HTTPException, Query, Depends
+from typing import Optional
 import logging
 import uuid
 
@@ -19,7 +19,6 @@ from models.agent import (
     AgentContract,
     AgentCreateRequest,
     AgentUpdateRequest,
-    AgentResponse,
     AgentType,
     AgentStatus,
     AgentIdentity,
@@ -29,6 +28,7 @@ from models.agent import (
     VoiceConfiguration
 )
 from services.agent_service import AgentService
+from dependencies import get_tenant_id, get_user_id
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -54,34 +54,14 @@ class ChatResponse(BaseModel):
 
 
 # ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-def get_tenant_id(x_tenant_id: Optional[str] = Header(None)) -> str:
-    """Extract tenant ID from header or use default"""
-    if x_tenant_id:
-        return x_tenant_id
-    # Default tenant for development
-    return "00000000-0000-0000-0000-000000000001"
-
-
-def get_user_id(x_user_id: Optional[str] = Header(None)) -> str:
-    """Extract user ID from header or use default"""
-    if x_user_id:
-        return x_user_id
-    # Default user for development
-    return "00000000-0000-0000-0000-000000000001"
-
-
-# ============================================================================
 # AGENT CRUD ENDPOINTS
 # ============================================================================
 
 @router.post("/agents", status_code=201)
 async def create_agent(
     request: AgentCreateRequest,
-    tenant_id: str = Header(None, alias="x-tenant-id"),
-    user_id: str = Header(None, alias="x-user-id")
+    tenant_id: str = Depends(get_tenant_id),
+    user_id: str = Depends(get_user_id)
 ):
     """
     Create new agent from JSON contract
@@ -90,9 +70,8 @@ async def create_agent(
     1. Validate JSON contract
     2. Create database record
     3. Initialize memory namespace
-    4. Save filesystem JSON
-    5. Create default thread
-    6. Return agent object
+    4. Create default thread
+    5. Return agent object
 
     **Example Request:**
     ```json
@@ -115,26 +94,36 @@ async def create_agent(
     ```
     """
     try:
-        tenant_id = tenant_id or get_tenant_id()
-        user_id = user_id or get_user_id()
+        # Determine if voice is required
+        voice_required = (
+            request.type == AgentType.VOICE or
+            (request.configuration and request.configuration.voice_enabled)
+        )
 
-        # Apply default voice if none provided and voice_enabled is True
+        # Validate voice requirement
         voice_config = request.voice
-        if not voice_config and (request.configuration and request.configuration.voice_enabled):
-            logger.info("No voice provided but voice_enabled=True, using default voice (Rachel)")
-            voice_config = VoiceConfiguration(
-                provider="elevenlabs",
-                voice_id="21m00Tcm4TlvDq8ikWAM",  # Rachel - default calm voice
-                language="en-US",
-                speed=1.0,
-                pitch=1.0,
-                stability=0.75,
-                similarity_boost=0.75,
-                stt_provider="deepgram",
-                stt_model="nova-2",
-                stt_language="en",
-                vad_enabled=True
-            )
+        if voice_required and not voice_config:
+            if request.type == AgentType.VOICE:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Voice configuration is required for voice agents. Provide 'voice' field with voice_id and provider."
+                )
+            else:
+                # Apply default voice for voice_enabled=True
+                logger.info("No voice provided but voice_enabled=True, using default voice (Rachel)")
+                voice_config = VoiceConfiguration(
+                    provider="elevenlabs",
+                    voice_id="21m00Tcm4TlvDq8ikWAM",  # Rachel - default calm voice
+                    language="en-US",
+                    speed=1.0,
+                    pitch=1.0,
+                    stability=0.75,
+                    similarity_boost=0.75,
+                    stt_provider="deepgram",
+                    stt_model="nova-2",
+                    stt_language="en",
+                    vad_enabled=True
+                )
 
         # Apply default avatar if none provided
         identity = request.identity
@@ -176,7 +165,7 @@ async def create_agent(
 
 @router.get("/agents")
 async def list_agents(
-    tenant_id: str = Header(None, alias="x-tenant-id"),
+    tenant_id: str = Depends(get_tenant_id),
     status: Optional[str] = Query(None, description="Filter by status"),
     agent_type: Optional[str] = Query(None, description="Filter by type"),
     limit: int = Query(50, ge=1, le=100),
@@ -201,8 +190,6 @@ async def list_agents(
     ```
     """
     try:
-        tenant_id = tenant_id or get_tenant_id()
-
         agents = await agent_service.list_agents(
             tenant_id=tenant_id,
             status=status,
@@ -231,7 +218,7 @@ async def list_agents(
 @router.get("/agents/{agent_id}")
 async def get_agent(
     agent_id: str,
-    x_tenant_id: Optional[str] = Header(None, alias="x-tenant-id")
+    tenant_id: str = Depends(get_tenant_id)
 ):
     """
     Get agent details by ID
@@ -253,8 +240,6 @@ async def get_agent(
     ```
     """
     try:
-        tenant_id = x_tenant_id if x_tenant_id else "00000000-0000-0000-0000-000000000001"
-
         agent = await agent_service.get_agent(agent_id, tenant_id)
 
         if not agent:
@@ -273,7 +258,7 @@ async def get_agent(
 async def update_agent(
     agent_id: str,
     request: AgentUpdateRequest,
-    tenant_id: str = Header(None, alias="x-tenant-id")
+    tenant_id: str = Depends(get_tenant_id)
 ):
     """
     Update agent contract
@@ -301,7 +286,10 @@ async def update_agent(
     ```
     """
     try:
-        tenant_id = tenant_id or get_tenant_id()
+        # Get current agent to validate voice requirements
+        current_agent = await agent_service.get_agent(agent_id, tenant_id)
+        if not current_agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
 
         # Build updates dict
         updates = {}
@@ -319,6 +307,25 @@ async def update_agent(
             updates["tags"] = request.tags
         if request.status:
             updates["status"] = request.status.value
+
+        # Validate voice requirements for type or voice_enabled changes
+        current_contract = current_agent["contract"]
+
+        # Check if updating type to VOICE
+        if updates.get("type") == AgentType.VOICE.value:
+            if not updates.get("voice") and not current_contract.get("voice"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot set agent type to VOICE without voice configuration. Provide 'voice' field."
+                )
+
+        # Check if enabling voice in configuration
+        if updates.get("configuration", {}).get("voice_enabled") is True:
+            if not updates.get("voice") and not current_contract.get("voice"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot enable voice without voice configuration. Provide 'voice' field."
+                )
 
         # Update via service
         updated_agent = await agent_service.update_agent(agent_id, tenant_id, updates)
@@ -342,7 +349,7 @@ async def update_agent(
 @router.delete("/agents/{agent_id}")
 async def delete_agent(
     agent_id: str,
-    tenant_id: str = Header(None, alias="x-tenant-id")
+    tenant_id: str = Depends(get_tenant_id)
 ):
     """
     Archive agent (soft delete)
@@ -360,8 +367,6 @@ async def delete_agent(
     ```
     """
     try:
-        tenant_id = tenant_id or get_tenant_id()
-
         success = await agent_service.delete_agent(agent_id, tenant_id)
 
         if not success:
@@ -387,8 +392,8 @@ async def delete_agent(
 async def chat_with_agent(
     agent_id: str,
     request: ChatRequest,
-    tenant_id: str = Header(None, alias="x-tenant-id"),
-    user_id: str = Header(None, alias="x-user-id")
+    tenant_id: str = Depends(get_tenant_id),
+    user_id: str = Depends(get_user_id)
 ):
     """
     Chat with agent
@@ -428,9 +433,6 @@ async def chat_with_agent(
     ```
     """
     try:
-        tenant_id = tenant_id or get_tenant_id()
-        user_id = user_id or get_user_id()
-
         result = await agent_service.process_interaction(
             agent_id=agent_id,
             tenant_id=tenant_id,
@@ -456,7 +458,7 @@ async def chat_with_agent(
 @router.get("/agents/{agent_id}/threads")
 async def get_agent_threads(
     agent_id: str,
-    tenant_id: str = Header(None, alias="x-tenant-id"),
+    tenant_id: str = Depends(get_tenant_id),
     limit: int = Query(20, ge=1, le=100)
 ):
     """
@@ -470,8 +472,6 @@ async def get_agent_threads(
     - Context summary (if available)
     """
     try:
-        tenant_id = tenant_id or get_tenant_id()
-
         from database import get_pg_pool
         pool = get_pg_pool()
 
@@ -516,7 +516,7 @@ async def get_agent_threads(
 @router.get("/agents/{agent_id}/versions")
 async def get_agent_versions(
     agent_id: str,
-    tenant_id: str = Header(None, alias="x-tenant-id"),
+    tenant_id: str = Depends(get_tenant_id),
     limit: int = Query(10, ge=1, le=50)
 ):
     """
@@ -529,8 +529,6 @@ async def get_agent_versions(
     - Created timestamp
     """
     try:
-        tenant_id = tenant_id or get_tenant_id()
-
         from database import get_pg_pool
         pool = get_pg_pool()
 
@@ -587,7 +585,7 @@ async def get_agent_versions(
 async def create_agent_from_intake(
     user_id: str,
     intake_contract: dict,
-    tenant_id: str = Header(None, alias="x-tenant-id")
+    tenant_id: str = Depends(get_tenant_id)
 ):
     """
     Baseline Flow: Create Guide Agent + Session + Protocol in one call
@@ -621,12 +619,9 @@ async def create_agent_from_intake(
     }
     """
     try:
-        from models.schemas import GuideAttributes, CreateFromIntakeResponse
-        from agents.manifestation_protocol_agent import ManifestationProtocolAgent
+        from agents.guide_agent.guide_sub_agents.manifestation_protocol_agent import ManifestationProtocolAgent
         import json
         import uuid as uuid_lib
-
-        tenant_id = tenant_id or get_tenant_id()
 
         logger.info(f"🌟 Baseline flow: Creating guide from intake for user {user_id}")
 
@@ -792,27 +787,33 @@ async def create_agent_from_intake(
 
         # 6. Store protocol in memory (non-blocking)
         try:
-            from services.memory_manager import MemoryManager
-            memory_manager = MemoryManager()
-            await memory_manager.initialize()
-
-            # Summarize and store protocol
-            protocol_summary = f"Generated manifestation protocol with {len(protocol.get('affirmations', {}).get('all', []))} affirmations, {len(protocol.get('daily_practices', []))} practices, {len(protocol.get('checkpoints', []))} checkpoints."
-
-            await memory_manager.summarize_and_store(
-                session_id=session_id,
-                text=protocol_summary
-            )
-
-            # Store key protocol facts in semantic memory
-            protocol_facts = f"User goals: {', '.join(normalized_goals)}. Manifestation protocol includes affirmations, daily practices, and progress checkpoints."
-
-            await memory_manager.embed_and_upsert(
-                user_id=user_id,
+            from memoryManager.memory_manager import MemoryManager
+            
+            # MemoryManager requires tenant_id, agent_id, and agent_traits
+            # Use calculated traits from the contract we just created
+            agent_traits = calculated_traits.model_dump() if calculated_traits else {}
+            
+            memory_manager = MemoryManager(
+                tenant_id=tenant_id,
                 agent_id=agent_id,
-                session_id=session_id,
-                content=protocol_facts,
-                meta={"type": "protocol", "session_id": session_id}
+                agent_traits=agent_traits
+            )
+            
+            # Store protocol summary in memory
+            protocol_summary = f"Generated manifestation protocol with {len(protocol.get('affirmations', {}).get('all', []))} affirmations, {len(protocol.get('daily_practices', []))} practices, {len(protocol.get('checkpoints', []))} checkpoints."
+            
+            await memory_manager.add_memory(
+                content=protocol_summary,
+                memory_type="protocol",
+                user_id=user_id,
+                metadata={
+                    "type": "manifestation_protocol",
+                    "session_id": str(session_id),
+                    "goals": normalized_goals,
+                    "affirmations_count": len(protocol.get('affirmations', {}).get('all', [])),
+                    "practices_count": len(protocol.get('daily_practices', [])),
+                    "checkpoints_count": len(protocol.get('checkpoints', []))
+                }
             )
 
             logger.debug("Stored protocol in memory")

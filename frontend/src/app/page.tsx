@@ -123,7 +123,7 @@ export default function Home() {
             </h2>
             <p className="text-xl lg:text-2xl text-white/90 leading-relaxed max-w-3xl">
               Our mission is to unlock the Divine Spark of Becoming. We blend the Law of Attraction,
-              Positive Mindset Training, and Quantum Shifting with modern AI. Your Agent listens,
+              Positive Mindset Training, and Quantum Shifting with modern AI. Your Guide listens,
               learns, and personalizes affirmations, mantras, guided meditations, and hypnosis sessions
               tailored to your unique goals.
             </p>
@@ -221,7 +221,7 @@ export default function Home() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">Adaptive AI</h3>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Adaptive Guide</h3>
                     <p className="text-gray-600 leading-relaxed">
                       Continuously refines and optimizes content based on your progress every session.
                     </p>

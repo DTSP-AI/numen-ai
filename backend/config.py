@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     qdrant_port: Optional[int] = None
     qdrant_api_key: Optional[str] = None
 
+    # JWT Authentication
+    JWT_SECRET_KEY: str = "your-secret-key-change-in-production-hypnoagent-2025"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
     # App Settings
     environment: str = "development"
     log_level: str = "INFO"

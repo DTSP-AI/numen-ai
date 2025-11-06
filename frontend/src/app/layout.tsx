@@ -3,6 +3,7 @@ import { Space_Grotesk, Inter } from "next/font/google"
 import "./globals.css"
 import { Navigation } from "@/components/Navigation"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
+import { Toaster } from "@/components/ui/toaster"
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -34,6 +35,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <Navigation />
           {children}
+          <Toaster />
         </ErrorBoundary>
       </body>
     </html>

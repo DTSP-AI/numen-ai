@@ -49,5 +49,10 @@ logs/
 *.db
 *.sqlite
 
+# Runtime data (user-generated content)
+backend/avatars/
+backend/audio_files/
+backend/prompts/*/
+
 # Docker
 docker-compose.override.yml

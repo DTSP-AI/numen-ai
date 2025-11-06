@@ -1,168 +1,127 @@
-Here is a **comprehensive prompt chain** to fully execute the **NEXT ACTIONS** checklist. This prompt is designed for Claude or a self-healing dev agent with access to your repo, test harness, and LangGraph runtime.
+Perfect — this is exactly where you ask the **hard, reality-check questions** before trusting a “100% completion” report.
+If this were your production system, here’s the **elite-level interrogation sequence** you’d use to vet the work before greenlighting any deployment or integration.
 
 ---
 
-## 🧠 **Prompt Chain: Phase 1 Finalization + Phase 2 Readiness (Cognitive Layer)**
+# ⚔️ HARD QUESTIONS — CODEBASE VALIDATION PHASE
 
-**Agent Name:** `CognitiveSystemOps_Executor`
-**Purpose:** Execute the remaining post-implementation tasks for the Guide Cognitive Kernel infrastructure: improve OS safety, create test coverage, seed default belief maps, wire reflex triggers into LangGraph, and begin CAM visualizer scaffolding.
+### 🧠 1. **Architecture Authenticity**
 
----
+* **Q1:** Does the so-called “LangGraph Agent” actually exist and function end-to-end, or is it just a wrapper class that never calls the graph runtime?
+  *(Check `backend/agents/langgraph_agent.py` → does it import and compile `graph.py` or just mimic it?)*
 
-### 🟩 STEP 1 — Fix Platform-Safe Migration Script
+* **Q2:** Did the “fix” add another redundant layer instead of consolidating to your single canonical `graph.py`?
+  *(If so, revert that duplication immediately — the graph should be in `graph/graph.py`, not named after the stack.)*
 
-````prompt
-You’re reviewing `run_cognitive_migration.py`. Update the script to use `os.path.join()` and `__file__` so that it works across platforms (Windows, macOS, Linux).
-
-Add a fallback check: if migration fails due to `asyncpg`, catch the exception and log it clearly with remediation steps.
-
-Ensure path resolution works regardless of where the script is called from.
-
-Use:
-
-```python
-base_dir = os.path.dirname(os.path.abspath(__file__))
-sql_file_path = os.path.join(base_dir, '004_cognitive_assessment_tables.sql')
-````
-
-````
+* **Q3:** Is there proof in logs or tests that **state transitions occur correctly** between nodes (`retrieve_context`, `build_prompt`, `invoke_llm`, `post_process`, `check_triggers`)?
+  *(You want explicit asserts on `workflow_status` transitions.)*
 
 ---
 
-### 🟨 STEP 2 — Generate Cognitive Memory & Intake Test Files
+### 🧩 2. **Authentication Reality Check**
 
-```prompt
-Create two test files under `tests/`:
+* **Q4:** Are JWT tokens verified against your **tenant and user tables** or just accepted as-is?
+  *(Look for `get_current_user` implementation — must cross-verify tenant ownership.)*
 
-1. `test_memory_cognitive.py`:
-   - Mocks the `MemoryManager`
-   - Calls `store_goal_assessment`, `store_belief_graph`, and `store_cognitive_metric` with dummy data
-   - Asserts the correct `Mem0` storage calls and DB logging (mock `get_pg_pool`)
+* **Q5:** Are refresh tokens revocable, or is there no token blacklist / rotation system?
+  *(If no rotation, long-lived refresh = open door for hijacked sessions.)*
 
-2. `test_cognitive_intake.py`:
-   - Instantiates `IntakeAgentCognitive`
-   - Mocks a cognitive intake scenario:
-     - 2 goals with GAS scale
-     - 3 belief nodes and 2 belief edges
-     - One emotion conflict scenario
-   - Validates the belief graph and goal vector output
-
-Use `pytest + asyncio` compatible style and mock out DB + memory dependencies.
-````
+* **Q6:** Does every `@router` import `Depends(get_current_user)` **and** verify the user’s `tenant_id` matches the entity being queried?
+  *(Otherwise, cross-tenant leakage risk remains.)*
 
 ---
 
-### 🟨 STEP 3 — Add `belief_graph_template.json`
+### 🧱 3. **Database Schema Integrity**
 
-````prompt
-Create a file: `backend/assets/belief_graph_template.json`
+* **Q7:** Were migrations actually created in `/migrations/versions` or just assumed via `Base.metadata.create_all()`?
+  *(Production DBs require Alembic migrations, not runtime table creation.)*
 
-It should contain a default set of starter nodes and edges for belief mapping. Structure:
+* **Q8:** Do `GuideContracts` enforce uniqueness by `(user_id, name)` or similar constraint to prevent duplicate Guide collisions?
 
-```json
-{
-  "graph_name": "Default Belief Map",
-  "nodes": [
-    {
-      "id": "n1",
-      "label": "I’m not good enough",
-      "node_type": "limiting_belief",
-      "emotional_valence": -0.7
-    },
-    {
-      "id": "n2",
-      "label": "Success requires struggle",
-      "node_type": "core_belief",
-      "emotional_valence": -0.2
-    }
-  ],
-  "edges": [
-    {
-      "source": "n1",
-      "target": "n2",
-      "relationship": "supports"
-    }
-  ]
-}
-````
-
-Modify `intake_agent_cognitive.py` to auto-load this as fallback if user doesn’t provide beliefs in intake.
-
-````
+* **Q9:** Are there **foreign key relationships** between `guides`, `users`, and `tenants` to enforce isolation at the DB level?
 
 ---
 
-### 🟥 STEP 4 — Wire Reflex Trigger into LangGraph Runtime
+### 🧬 4. **LLM Integration Verification**
 
-```prompt
-Modify `langgraph_agent.py` to include a **post-node reflex trigger hook**.
+* **Q10:** Do the “real” implementations actually hit the OpenAI/Anthropic APIs with structured prompts, or is there still pseudo logic like:
 
-Steps:
-- After each node execution (agent step), inspect `AgentState.cognitive_metrics`
-- Import and call `check_reflex_trigger(agent_state)` from `trigger_logic.py`
-- If a threshold is breached:
-  - Inject a message into `AgentState.messages`
-  - Log the trigger action in trace
+  ```python
+  if "affirmation" in message_lower:
+      return "Sure, I can help you with that!"
+  ```
 
-Example:
-```python
-from services.trigger_logic import check_reflex_trigger
+  *(Audit `agent_service.py`, `affirmation_agent.py`, and `therapy_agent.py` for any heuristic fallback code.)*
 
-updated_state = check_reflex_trigger(agent_state)
-return updated_state
-````
-
-This enables *autonomous activation* of reassessment, encouragement, or belief intervention steps during runtime.
-
-````
+* **Q11:** Does the prompt context include system + user + memory layers, or did the refactor flatten everything into a single string?
+  *(Multi-message context is required for continuity and memory coherence.)*
 
 ---
 
-### 🟩 STEP 5 — CAM Visualizer Block (ReactFlow Preferred)
+### ⚙️ 5. **Memory and State Consistency**
 
-```prompt
-Design a React component for the CAM (Cognitive-Affective Mapping) Visualizer using ReactFlow.
+* **Q12:** When MemoryManager saves new context, does it store **diffed embeddings** or overwrite the entire memory blob each time?
+  *(If overwrite, you lose all continuity over time.)*
 
-Component: `CAMVisualizer.tsx`
+* **Q13:** Is vector memory actually persisted (e.g., `pgvector`, `chromadb`) or simulated in a local dict cache?
 
-Features:
-- Nodes = beliefs (color-coded by emotional valence)
-- Edge type = `supports` / `conflicts`
-- Tooltip on hover = belief strength, type, associated goal
-- Optional toggle to view "Tension Nodes" (conflict_score > 0.7)
-
-Inputs:
-```ts
-type CAMNode = {
-  id: string;
-  label: string;
-  node_type: "limiting_belief" | "core_belief" | "neutral";
-  emotional_valence: number;
-};
-
-type CAMEdge = {
-  source: string;
-  target: string;
-  relationship: "supports" | "conflicts";
-};
-
-<CAMVisualizer nodes={CAMNode[]} edges={CAMEdge[]} />
-````
-
-Display embedded in Guide dashboard or chat inspector view.
-
-```
+* **Q14:** Was the LRU cache added for memory leak control ever actually **tested under concurrency**?
+  *(Run with `--workers 4` and confirm eviction doesn’t cross sessions.)*
 
 ---
 
-## 📦 Final Output from Prompt Chain
+### 🧰 6. **Security & Infrastructure**
 
-Once Claude or an agent executes this prompt chain, the system will include:
+* **Q15:** Is there rate limiting on auth endpoints to block brute force?
+  *(FastAPI’s `SlowAPIMiddleware` or custom Redis limiter should exist.)*
 
-- Cross-platform-safe cognitive migration script ✅
-- Full test coverage for memory and cognitive intake ✅
-- Default belief graph for new users ✅
-- LangGraph reflex hook for runtime reassessments ✅
-- UI-ready CAM Visualizer (modular, embeddable) ✅
+* **Q16:** Were `.env` secrets scrubbed from logs and commit history, or did someone commit a JWT_SECRET_KEY earlier?
+  *(Search git log for “JWT_SECRET_KEY”.)*
 
---
+* **Q17:** Is CORS configured to prevent wildcard origins?
+  *(Look for `allow_origins=["*"]` — that’s instant failure for prod.)*
+
+---
+
+### 🧪 7. **Testing Authenticity**
+
+* **Q18:** Do the tests actually call real endpoints using `TestClient`, or do they mock everything?
+  *(Mocked tests = fake confidence.)*
+
+* **Q19:** Is there at least one **integration test** covering full flow:
+  Intake → Guide Creation → Asset Generation → Trigger/Reflex → Memory Save?
+  *(If not, you have no proof of orchestration correctness.)*
+
+* **Q20:** Were these “38 tests” run in CI/CD with environment variables, or manually executed once?
+
+---
+
+### 🧾 8. **Documentation Integrity**
+
+* **Q21:** Does `FRONTEND_JWT_INTEGRATION.md` actually reflect the **current API responses and payloads**, or is it describing pre-fix endpoints?
+  *(Mismatch = onboarding disaster.)*
+
+* **Q22:** Are all `DEPLOYMENT_CHECKLIST.md` steps verifiable via command line (Alembic migration, `.env` validation, port binding)?
+
+---
+
+### 🧩 9. **Guide System Logic**
+
+* **Q23:** Does IntakeAgent still call `AgentService.create_agent()` with the **same guide limit enforcement** logic, or did that validation vanish during refactor?
+
+* **Q24:** Are sub-agents (`AffirmationAgent`, `ProtocolAgent`, `SleepAgent`) sharing a single unified `GuideState` from `graph.py`, or did the refactor duplicate state logic again?
+
+* **Q25:** Is `therapy_agent.py` actually implemented and functional, or just an empty stub to quiet imports?
+
+---
+
+### 🔒 10. **Production Deployment Readiness**
+
+* **Q26:** Is HTTPS enforced via proxy or FastAPI middleware in production config?
+* **Q27:** Is logging centralized (e.g., `structlog` or `logging.config.dictConfig`) with rotation?
+* **Q28:** Does `uvicorn` start with `--workers` > 1 and still maintain session consistency?
+* **Q29:** Is there any form of observability (Prometheus, Sentry, etc.) tied into the app?
+* **Q30:** Is Supabase storage properly authenticated or public by default?
+  *(If public, anyone can download user assets.)*
+
+---

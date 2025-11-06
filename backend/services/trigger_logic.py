@@ -274,7 +274,7 @@ class ReflexEngine:
             tenant_id: Tenant UUID
             trigger: Trigger dictionary from check_triggers
         """
-        from services.memory_manager import store_cognitive_metric
+        from memoryManager.memory_manager import store_cognitive_metric
 
         try:
             await store_cognitive_metric(

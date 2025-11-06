@@ -1,6 +1,8 @@
-# Numen AI - AI-Powered Manifestation & Affirmation Platform
+# HypnoAgent - AI-Powered Manifestation & Hypnotherapy Platform
 
-Production-grade platform combining FastAPI backend, Next.js frontend, and multi-agent AI orchestration for personalized affirmations, hypnotherapy scripts, and manifestation protocols with real-time voice interactions.
+Production-grade voice-enabled AI agent system built with LangGraph, FastAPI, and Next.js. Users create personalized Guide agents that provide affirmations, therapy sessions, and daily protocols through voice and text interactions.
+
+**Status**: Ready for local testing. Core features working, voice features optional.
 
 ## Architecture
 
@@ -18,51 +20,79 @@ Production-grade platform combining FastAPI backend, Next.js frontend, and multi
 - **Frontend**: Next.js 14.2.7, React 18, TailwindCSS, Radix UI, Framer Motion
 - **Infrastructure**: Azure Container Apps, Docker Compose
 
-## Quick Start
+## Quick Start (5 Minutes)
 
-### 1. Start Infrastructure (Optional for Local Dev)
+### Prerequisites
+- Python 3.11+
+- Node.js 18+
+- Supabase account (free tier)
+- OpenAI API key
 
-```bash
-docker-compose up -d
-```
-
-This starts local PostgreSQL. For production, we use Supabase (managed PostgreSQL with pgvector).
-
-### 2. Configure Environment
+### One-Command Setup
 
 ```bash
-cd backend
-cp .env.example .env
-# Edit .env with your API keys
+# Windows:
+scripts\install.bat
+
+# Mac/Linux:
+./scripts/install.sh
 ```
 
-Required API keys:
-- `OPENAI_API_KEY` - OpenAI GPT-4 for agent reasoning
-- `MEM0_API_KEY` - Mem0 cloud memory service
-- `ELEVENLABS_API_KEY` - ElevenLabs voice synthesis
-- `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` - LiveKit real-time voice
-- `DEEPGRAM_API_KEY` - Deepgram speech-to-text
-- `SUPABASE_DB_URL` - Supabase PostgreSQL connection string
+This will:
+1. Install all backend dependencies (Python packages)
+2. Install all frontend dependencies (npm packages)
+3. Create necessary directories
+4. Copy .env.example to .env
 
-### 3. Start Backend
+### Configure Environment
+
+Edit `.env` in project root with your credentials:
+
+**Required** (app won't start without these):
+```bash
+SUPABASE_DB_URL=postgresql://...     # From Supabase dashboard
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_KEY=eyJ...
+OPENAI_API_KEY=sk-proj-...
+```
+
+**Optional** (app works without these - features gracefully degrade):
+```bash
+ELEVENLABS_API_KEY=...   # Voice synthesis
+DEEPGRAM_API_KEY=...     # Speech-to-text
+LIVEKIT_API_KEY=...      # Real-time voice
+LIVEKIT_API_SECRET=...
+LIVEKIT_URL=...
+```
+
+### Start Development Servers
 
 ```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload
+# Windows:
+scripts\dev.bat
+
+# Mac/Linux:
+./scripts/dev.sh
 ```
 
-Backend runs on `http://localhost:8003` (see [PORT_ASSIGNMENT_LAW.md](docs/architecture/PORT_ASSIGNMENT_LAW.md))
+### Access Points
+- **Frontend**: http://localhost:3003
+- **Backend API**: http://localhost:8003/docs
+- **Health Check**: http://localhost:8003/health
 
-### 4. Start Frontend
+### Verify Setup
 
 ```bash
-cd frontend
-npm install
-npm run dev
+# Check health and service status
+curl http://localhost:8003/health
 ```
 
-Frontend runs on `http://localhost:3003` (see [PORT_ASSIGNMENT_LAW.md](docs/architecture/PORT_ASSIGNMENT_LAW.md))
+Should show:
+- `status: "healthy"` or `"degraded"`
+- All service statuses
+- Enabled capabilities
+
+For detailed setup instructions, see **[docs/LOCAL_SETUP_GUIDE.md](docs/LOCAL_SETUP_GUIDE.md)**
 
 ## Project Structure
 

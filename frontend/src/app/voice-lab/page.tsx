@@ -454,7 +454,7 @@ export default function VoiceLabPage() {
               variant="outline"
               className="bg-white/10 hover:bg-white/20 text-white font-semibold border border-white/30 px-8 py-6 text-lg"
             >
-              Back to Agent Creation
+              Back to Guide Creation
             </Button>
           </motion.div>
         </motion.div>

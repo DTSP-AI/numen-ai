@@ -5,7 +5,7 @@ CRUD operations for affirmations, scripts, and user content.
 Part of the Dashboard Agent system.
 """
 
-from fastapi import APIRouter, HTTPException, Header, Query
+from fastapi import APIRouter, HTTPException, Header, Query, Depends
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from datetime import time, datetime
@@ -14,7 +14,8 @@ import logging
 from database import get_pg_pool
 from services.audio_synthesis import audio_service
 from models.agent import VoiceConfiguration
-from agents.manifestation_protocol_agent import ManifestationProtocolAgent
+from dependencies import get_user_id, get_tenant_id
+from agents.guide_agent.guide_sub_agents.manifestation_protocol_agent import ManifestationProtocolAgent
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -204,7 +205,7 @@ async def generate_affirmations(request: GenerateAffirmationsRequest):
 @router.get("/affirmations/user/{user_id}")
 async def get_user_affirmations(
     user_id: str,
-    tenant_id: str = Header(None, alias="x-tenant-id"),
+    tenant_id: str = Depends(get_tenant_id),
     category: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200)
 ):
@@ -315,7 +316,7 @@ async def record_play(affirmation_id: str):
 @router.post("/affirmations/{affirmation_id}/synthesize")
 async def synthesize_audio(
     affirmation_id: str,
-    user_id: str = Header(None, alias="x-user-id")
+    user_id: str = Depends(get_user_id)
 ):
     """
     Synthesize audio for affirmation

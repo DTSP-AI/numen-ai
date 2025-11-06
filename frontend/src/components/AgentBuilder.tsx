@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { AIHelpButton } from "@/components/AIHelpButton"
+import { resolveAvatarUrl } from "@/lib/avatar-utils"
 
 interface AgentBuilderProps {
   userId: string
@@ -171,6 +172,7 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
         const audioBlob = await response.blob()
         const audioUrl = URL.createObjectURL(audioBlob)
         const audio = new Audio(audioUrl)
+        audio.volume = 1.0  // Explicitly set to maximum volume
         audio.onerror = () => {
           console.error("Audio playback failed for preview")
           setIsPlayingPreview(null)
@@ -193,17 +195,34 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
     }
   }
 
-  const generateAvatar = async () => {
+  const generateAvatar = async (e?: React.MouseEvent) => {
+    // Prevent default behavior and event bubbling
+    e?.preventDefault()
+    e?.stopPropagation()
+
+    // Debug logging
+    console.log("🔵 generateAvatar called", {
+      avatarPrompt,
+      promptLength: avatarPrompt.trim().length,
+      isGeneratingAvatar
+    })
+
     if (!avatarPrompt.trim()) {
+      console.log("⚠️ Avatar prompt is empty")
       alert("Please enter a description for your avatar")
       return
     }
 
     setIsGeneratingAvatar(true)
     try {
+      console.log("📤 Sending avatar generation request...")
       const response = await fetch("http://localhost:8003/api/avatar/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-tenant-id": "00000000-0000-0000-0000-000000000001",
+          "x-user-id": userId || "00000000-0000-0000-0000-000000000001"
+        },
         body: JSON.stringify({
           prompt: avatarPrompt,
           size: "1024x1024",
@@ -212,23 +231,33 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
         })
       })
 
+      console.log("📥 Response received:", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      })
+
       if (response.ok) {
         const data = await response.json()
-        // Prepend localhost if relative URL
-        const fullAvatarUrl = data.avatar_url.startsWith('http')
-          ? data.avatar_url
-          : `http://localhost:8003${data.avatar_url}`
+        console.log("✅ Avatar generated successfully:", data)
+        // Use resolveAvatarUrl utility
+        const fullAvatarUrl = resolveAvatarUrl(data.avatar_url)
         setAvatarUrl(fullAvatarUrl)
       } else {
-        const error = await response.text()
-        console.error("Avatar generation failed:", error)
-        alert("Failed to generate avatar. Please try again.")
+        const errorText = await response.text()
+        console.error("❌ Avatar generation failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        })
+        alert(`Failed to generate avatar: ${response.statusText}. Check console for details.`)
       }
     } catch (error) {
-      console.error("Avatar generation error:", error)
-      alert("Failed to generate avatar. Please try again.")
+      console.error("❌ Avatar generation error:", error)
+      alert("Failed to generate avatar. Please check your network connection and try again.")
     } finally {
       setIsGeneratingAvatar(false)
+      console.log("🏁 Avatar generation complete")
     }
   }
 
@@ -243,6 +272,10 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
 
       const response = await fetch("http://localhost:8003/api/avatar/upload", {
         method: "POST",
+        headers: {
+          'x-tenant-id': '00000000-0000-0000-0000-000000000001',
+          'x-user-id': '00000000-0000-0000-0000-000000000001',
+        },
         body: formData
       })
 
@@ -406,17 +439,17 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
 
       if (!agentResponse.ok) {
         const errorText = await agentResponse.text()
-        console.error("Agent creation failed:", errorText)
-        throw new Error(`Failed to create agent: ${errorText}`)
+        console.error("Guide creation failed:", errorText)
+        throw new Error(`Failed to create guide: ${errorText}`)
       }
 
       const agentResult = await agentResponse.json()
-      console.log("Agent created:", agentResult)
+      console.log("Guide created:", agentResult)
 
-      // Extract agent ID from response
+      // Extract guide ID from response
       const agentId = agentResult.agent?.id || agentResult.id
 
-      // Now have the Agent create a session
+      // Now have the Guide create a session
       const sessionResponse = await fetch("http://localhost:8003/api/sessions", {
         method: "POST",
         headers: {
@@ -442,12 +475,12 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
       // Clean up localStorage
       localStorage.removeItem('intakeData')
 
-      // Show success - agent and session created!
+      // Show success - guide and session created!
       // Navigate to dashboard/home instead of affirmation generation
       router.push(`/dashboard?agentId=${agentId}&sessionId=${sessionId}&success=true`)
     } catch (error) {
-      console.error("Failed to create agent:", error)
-      alert("Failed to create your personalized agent. Please try again.")
+      console.error("Failed to create guide:", error)
+      alert("Failed to create your personalized guide. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
@@ -794,6 +827,7 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
                 />
 
                 <Button
+                  type="button"
                   onClick={generateAvatar}
                   disabled={isGeneratingAvatar || !avatarPrompt.trim()}
                   className="w-full bg-kurzgesagt-purple text-white hover:bg-kurzgesagt-purple/90"
@@ -1060,7 +1094,7 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
 
             <div className="glass-card p-6 rounded-2xl space-y-4">
               <div>
-                <h3 className="text-white font-bold mb-2">Agent Name</h3>
+                <h3 className="text-white font-bold mb-2">Guide Name</h3>
                 <p className="text-white/80">{agentName || "Not set"}</p>
               </div>
               <div>
@@ -1093,7 +1127,7 @@ export function AgentBuilder({ userId }: AgentBuilderProps) {
 
             <div className="bg-kurzgesagt-yellow/10 border border-kurzgesagt-yellow/30 rounded-xl p-4">
               <p className="text-white/90 text-sm">
-                ✨ Your personalized manifestation agent will be created with these settings. You can always adjust them later.
+                ✨ Your personalized manifestation guide will be created with these settings. You can always adjust them later.
               </p>
             </div>
           </motion.div>
