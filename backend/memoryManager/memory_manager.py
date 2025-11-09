@@ -167,6 +167,8 @@ class MemoryManager:
         """
         Retrieve the top-k most relevant past interactions using Mem0 search
 
+        CRITICAL: Recent thread messages MUST be retrieved from database regardless of Mem0 status.
+
         Args:
             user_input: Current user input for semantic search
             session_id: Thread/session ID
@@ -176,17 +178,22 @@ class MemoryManager:
         Returns:
             MemoryContext with retrieved memories and confidence score
         """
+        # ALWAYS get recent thread messages from database (Layer 1: Short-term memory)
+        # This MUST happen regardless of Mem0 status
+        recent_messages = await self._get_recent_thread_messages(session_id, limit=10)
+        logger.info(f"📜 Retrieved {len(recent_messages)} recent messages from database")
+
         if not self.client:
-            logger.warning("Mem0 client not initialized - returning empty context")
+            logger.warning("Mem0 client not initialized - returning context with DB messages only")
             return MemoryContext(
                 retrieved_memories=[],
-                recent_messages=[],
+                recent_messages=recent_messages,
                 confidence_score=0.0,
                 namespace=self.thread_namespace(session_id)
             )
 
         try:
-            # Search in thread namespace
+            # Search in thread namespace (Layer 2: Long-term memory)
             namespace = self.thread_namespace(session_id)
 
             results = self.client.search(
@@ -218,9 +225,6 @@ class MemoryManager:
 
             avg_score = total_score / max(len(memories), 1)
 
-            # Get recent thread messages from database for recent context
-            recent_messages = await self._get_recent_thread_messages(session_id, limit=10)
-
             logger.info(f"✅ Retrieved {len(memories)} memories from Mem0 (confidence: {avg_score:.2f})")
 
             return MemoryContext(
@@ -231,10 +235,11 @@ class MemoryManager:
             )
 
         except Exception as e:
-            logger.error(f"Failed to get agent context from Mem0: {e}")
+            logger.error(f"Failed to get semantic memories from Mem0: {e}")
+            # Return with recent_messages from database (already retrieved above)
             return MemoryContext(
                 retrieved_memories=[],
-                recent_messages=[],
+                recent_messages=recent_messages,  # ✅ Still have thread context
                 confidence_score=0.0,
                 namespace=self.thread_namespace(session_id)
             )
