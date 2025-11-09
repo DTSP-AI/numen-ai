@@ -106,8 +106,8 @@ class GuideAgent:
         # Initialize audio synthesis service
         self.audio_service = AudioSynthesisService()
 
-        # Build workflow using centralized graph
-        self.graph = build_agent_workflow(
+        # Build asset generation workflow using centralized graph
+        self.asset_graph = build_agent_workflow(
             retrieve_context_fn=self._load_guide_context,
             build_prompt_fn=self._perform_discovery,
             invoke_llm_fn=self._generate_assets,
@@ -115,7 +115,16 @@ class GuideAgent:
             check_cognitive_triggers_fn=self._embed_and_store
         )
 
-        logger.info(f"✅ GuideAgent initialized: {contract.name}")
+        # Build chat workflow (AGENT_ORCHESTRATION_STANDARD compliant)
+        self.chat_graph = build_agent_workflow(
+            retrieve_context_fn=self._chat_retrieve_context,
+            build_prompt_fn=self._chat_build_prompt,
+            invoke_llm_fn=self._chat_invoke_llm,
+            post_process_fn=self._chat_post_process,
+            check_cognitive_triggers_fn=self._chat_check_triggers
+        )
+
+        logger.info(f"✅ GuideAgent initialized with dual workflows: {contract.name}")
 
     async def _load_guide_context(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -429,47 +438,105 @@ class GuideAgent:
                 "workflow_status": "embed_store_failed"
             }
 
-    async def process_chat_message(
-        self,
-        user_id: str,
-        user_input: str,
-        thread_id: str,
-        memory_context: Any
-    ) -> str:
+    # ========================================================================
+    # CHAT WORKFLOW NODES (AGENT_ORCHESTRATION_STANDARD Compliant)
+    # ========================================================================
+
+    async def _chat_retrieve_context(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Process a simple chat message (for conversational interactions)
+        Node 1: Retrieve memory context for chat message
 
-        This is separate from the full asset generation workflow.
-        Use this for real-time chat interactions.
+        Uses MemoryManager to get relevant past interactions and recent messages.
+        """
+        try:
+            user_input = state.get("user_input", "")
+            thread_id = state.get("thread_id", "")
+            user_id = state.get("user_id", "")
 
-        Args:
-            user_id: User UUID
-            user_input: User's message
-            thread_id: Thread ID for context
-            memory_context: Memory context from MemoryManager
+            # Get memory context from MemoryManager
+            memory_context = await self.memory.get_agent_context(
+                user_input=user_input,
+                session_id=thread_id,
+                user_id=user_id,
+                k=5
+            )
 
-        Returns:
-            Agent's response text
+            logger.info(f"✅ Retrieved {len(memory_context.retrieved_memories)} memories for chat")
+
+            return {
+                "memory_context": memory_context,
+                "retrieved_memories": memory_context.retrieved_memories,
+                "recent_messages": memory_context.recent_messages,
+                "workflow_status": "context_retrieved"
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to retrieve chat context: {e}")
+            return {
+                "memory_context": None,
+                "retrieved_memories": [],
+                "recent_messages": [],
+                "workflow_status": "context_retrieval_failed"
+            }
+
+    async def _chat_build_prompt(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Node 2: Build LLM prompt from contract + memory context
+
+        Constructs system prompt from JSON contract and adds memory context.
+        """
+        try:
+            # Build system prompt from contract
+            system_prompt = self._build_system_prompt()
+
+            # Add memory context if available
+            context_str = ""
+            retrieved_memories = state.get("retrieved_memories", [])
+            if retrieved_memories:
+                context_str = "\n\nRelevant context from previous conversations:\n"
+                for mem in retrieved_memories[:3]:
+                    context_str += f"- {mem.get('content', '')}\n"
+
+            # Add recent messages for continuity
+            recent_messages = state.get("recent_messages", [])
+            if recent_messages and len(recent_messages) > 1:
+                context_str += "\n\nRecent conversation:\n"
+                for msg in recent_messages[-5:]:
+                    role = msg.get('role', 'user')
+                    content = msg.get('content', '')
+                    context_str += f"{role}: {content}\n"
+
+            full_system_prompt = system_prompt + context_str
+
+            logger.info(f"✅ Built chat prompt with {len(retrieved_memories)} memories")
+
+            return {
+                "system_prompt": full_system_prompt,
+                "workflow_status": "prompt_built"
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to build chat prompt: {e}")
+            return {
+                "system_prompt": self._build_system_prompt(),
+                "workflow_status": "prompt_build_failed"
+            }
+
+    async def _chat_invoke_llm(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Node 3: Invoke LLM with constructed prompt
+
+        Uses ChatOpenAI with configuration from contract.
         """
         try:
             from langchain_openai import ChatOpenAI
             from langchain.schema import SystemMessage, HumanMessage
             from config import settings
 
-            # Build system prompt from contract
-            system_prompt = self._build_system_prompt()
-
-            # Build context from memory
-            context_str = ""
-            if hasattr(memory_context, 'retrieved_memories') and memory_context.retrieved_memories:
-                context_str = "\n\nRelevant context from previous conversations:\n"
-                for mem in memory_context.retrieved_memories[:3]:
-                    context_str += f"- {mem.get('content', '')}\n"
-
             # Get OpenAI API key
             api_key = settings.openai_api_key or settings.OPENAI_API_KEY
 
-            # Initialize LLM
+            # Initialize LLM with contract configuration
             llm = ChatOpenAI(
                 model=self.contract.configuration.llm_model,
                 temperature=self.contract.configuration.temperature,
@@ -478,8 +545,11 @@ class GuideAgent:
             )
 
             # Build messages
+            system_prompt = state.get("system_prompt", "")
+            user_input = state.get("user_input", "")
+
             messages = [
-                SystemMessage(content=system_prompt + context_str),
+                SystemMessage(content=system_prompt),
                 HumanMessage(content=user_input)
             ]
 
@@ -487,12 +557,171 @@ class GuideAgent:
             response = await llm.ainvoke(messages)
             response_text = response.content
 
-            logger.info(f"✅ Chat response generated for thread {thread_id}")
+            logger.info(f"✅ LLM invoked for chat (model: {self.contract.configuration.llm_model})")
+
+            return {
+                "llm_response": response_text,
+                "workflow_status": "llm_invoked"
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to invoke LLM for chat: {e}")
+            return {
+                "llm_response": "I apologize, but I'm having trouble processing your message right now. Please try again.",
+                "workflow_status": "llm_invocation_failed",
+                "error_message": str(e)
+            }
+
+    async def _chat_post_process(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Node 4: Post-process LLM response
+
+        Cleans up response, applies formatting, validates output.
+        """
+        try:
+            llm_response = state.get("llm_response", "")
+
+            # Basic post-processing
+            response_text = llm_response.strip()
+
+            # Ensure response is not empty
+            if not response_text:
+                response_text = "I'm here to support you on your journey. How can I help you today?"
+
+            logger.info(f"✅ Chat response post-processed ({len(response_text)} chars)")
+
+            return {
+                "response_text": response_text,
+                "workflow_status": "response_processed"
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to post-process chat response: {e}")
+            return {
+                "response_text": state.get("llm_response", "I'm here to help."),
+                "workflow_status": "post_process_failed"
+            }
+
+    async def _chat_check_triggers(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Node 5: Check cognitive triggers and inject interventions
+
+        Uses trigger_logic to detect cognitive patterns and provide interventions.
+        """
+        try:
+            from services.trigger_logic import check_and_handle_triggers
+
+            user_id = state.get("user_id", "")
+            agent_id = str(self.contract.id)
+            tenant_id = state.get("tenant_id", "")
+            user_input = state.get("user_input", "")
+            response_text = state.get("response_text", "")
+
+            # Check for cognitive triggers
+            intervention_prompts = await check_and_handle_triggers(
+                user_id=user_id,
+                agent_id=agent_id,
+                tenant_id=tenant_id,
+                agent_contract=self.contract.model_dump(),
+                context={
+                    "stage": "chat_response",
+                    "user_input": user_input,
+                    "agent_response": response_text
+                }
+            )
+
+            trigger_fired = len(intervention_prompts) > 0
+
+            if trigger_fired:
+                logger.info(f"🔔 Cognitive triggers fired: {len(intervention_prompts)} interventions")
+            else:
+                logger.info("✅ No cognitive triggers detected")
+
+            return {
+                "cognitive_triggers": intervention_prompts,
+                "trigger_fired": trigger_fired,
+                "workflow_status": "completed"
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to check cognitive triggers: {e}")
+            return {
+                "cognitive_triggers": [],
+                "trigger_fired": False,
+                "workflow_status": "trigger_check_failed"
+            }
+
+    # ========================================================================
+    # CHAT MESSAGE PROCESSING (LangGraph-Based)
+    # ========================================================================
+
+    async def process_chat_message(
+        self,
+        user_id: str,
+        user_input: str,
+        thread_id: str,
+        memory_context: Any
+    ) -> str:
+        """
+        Process a chat message using LangGraph workflow (AGENT_ORCHESTRATION_STANDARD compliant)
+
+        Flows through 5-node LangGraph workflow:
+        1. retrieve_context - Get memory context
+        2. build_prompt - Build system prompt from contract + memory
+        3. invoke_llm - Call ChatOpenAI with configured model
+        4. post_process - Clean and format response
+        5. check_cognitive_triggers - Check for intervention triggers
+
+        Args:
+            user_id: User UUID
+            user_input: User's message
+            thread_id: Thread ID for context
+            memory_context: Memory context from MemoryManager (now retrieved in graph)
+
+        Returns:
+            Agent's response text
+        """
+        try:
+            # Get tenant_id from contract
+            tenant_id = self.contract.metadata.tenant_id
+
+            # Build initial state for LangGraph
+            initial_state = {
+                "agent_id": str(self.contract.id),
+                "user_id": user_id,
+                "tenant_id": tenant_id,
+                "thread_id": thread_id,
+                "user_input": user_input,
+                "input_text": user_input,
+                "agent_contract": self.contract.model_dump(),
+                "traits": self.contract.traits.model_dump(),
+                "configuration": self.contract.configuration.model_dump()
+            }
+
+            logger.info(f"🚀 Starting LangGraph chat workflow for thread {thread_id}")
+
+            # Invoke LangGraph chat workflow
+            result = await self.chat_graph.ainvoke(initial_state)
+
+            # Extract response from workflow result
+            response_text = result.get("response_text", "I'm here to support you.")
+
+            # Log workflow completion
+            workflow_status = result.get("workflow_status", "unknown")
+            trigger_fired = result.get("trigger_fired", False)
+
+            logger.info(f"""
+✅ LangGraph chat workflow complete:
+   Thread: {thread_id}
+   Status: {workflow_status}
+   Triggers: {'🔔 YES' if trigger_fired else 'No'}
+   Response length: {len(response_text)} chars
+""")
 
             return response_text
 
         except Exception as e:
-            logger.error(f"Chat message processing failed: {e}")
+            logger.error(f"LangGraph chat workflow failed: {e}", exc_info=True)
             return "I apologize, but I'm having trouble processing your message right now. Please try again."
 
     def _build_system_prompt(self) -> str:
@@ -553,8 +782,8 @@ Respond to the user in a way that embodies your character and mission.
 
             logger.info(f"🚀 Starting complete GuideAgent flow for user {user_id}")
 
-            # Run the workflow graph
-            result = await self.graph.ainvoke(initial_state)
+            # Run the asset generation workflow graph
+            result = await self.asset_graph.ainvoke(initial_state)
 
             logger.info(f"""
 ✅ GuideAgent flow complete:
