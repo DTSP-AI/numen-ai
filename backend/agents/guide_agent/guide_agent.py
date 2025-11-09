@@ -483,35 +483,41 @@ class GuideAgent:
         """
         Node 2: Build LLM prompt from contract + memory context
 
-        Constructs system prompt from JSON contract and adds memory context.
+        Constructs system prompt from JSON contract and prepares conversation history.
+        CRITICAL: Recent messages must be formatted as proper message objects, not text.
         """
         try:
             # Build system prompt from contract
             system_prompt = self._build_system_prompt()
 
-            # Add memory context if available
-            context_str = ""
+            # Add semantic memory context to system prompt
             retrieved_memories = state.get("retrieved_memories", [])
             if retrieved_memories:
-                context_str = "\n\nRelevant context from previous conversations:\n"
+                memory_context = "\n\n=== RELEVANT CONTEXT FROM MEMORY ===\n"
                 for mem in retrieved_memories[:3]:
-                    context_str += f"- {mem.get('content', '')}\n"
+                    memory_context += f"• {mem.get('content', '')}\n"
+                system_prompt += memory_context
 
-            # Add recent messages for continuity
+            # Build conversation history as proper message list (NOT text in system prompt)
+            conversation_history = []
             recent_messages = state.get("recent_messages", [])
-            if recent_messages and len(recent_messages) > 1:
-                context_str += "\n\nRecent conversation:\n"
-                for msg in recent_messages[-5:]:
+
+            if recent_messages:
+                logger.info(f"📜 Building conversation history with {len(recent_messages)} messages")
+                for msg in recent_messages:
                     role = msg.get('role', 'user')
                     content = msg.get('content', '')
-                    context_str += f"{role}: {content}\n"
+                    if content:  # Only add non-empty messages
+                        conversation_history.append({
+                            "role": role,
+                            "content": content
+                        })
 
-            full_system_prompt = system_prompt + context_str
-
-            logger.info(f"✅ Built chat prompt with {len(retrieved_memories)} memories")
+            logger.info(f"✅ Built chat prompt with {len(retrieved_memories)} memories and {len(conversation_history)} history messages")
 
             return {
-                "system_prompt": full_system_prompt,
+                "system_prompt": system_prompt,
+                "conversation_history": conversation_history,
                 "workflow_status": "prompt_built"
             }
 
@@ -519,18 +525,20 @@ class GuideAgent:
             logger.error(f"Failed to build chat prompt: {e}")
             return {
                 "system_prompt": self._build_system_prompt(),
+                "conversation_history": [],
                 "workflow_status": "prompt_build_failed"
             }
 
     async def _chat_invoke_llm(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Node 3: Invoke LLM with constructed prompt
+        Node 3: Invoke LLM with constructed prompt and FULL conversation history
 
+        CRITICAL: Must include entire thread conversation, not just current message.
         Uses ChatOpenAI with configuration from contract.
         """
         try:
             from langchain_openai import ChatOpenAI
-            from langchain.schema import SystemMessage, HumanMessage
+            from langchain.schema import SystemMessage, HumanMessage, AIMessage
             from config import settings
 
             # Get OpenAI API key
@@ -544,14 +552,27 @@ class GuideAgent:
                 api_key=api_key
             )
 
-            # Build messages
+            # Build messages with FULL conversation context
             system_prompt = state.get("system_prompt", "")
             user_input = state.get("user_input", "")
+            conversation_history = state.get("conversation_history", [])
 
-            messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_input)
-            ]
+            # Start with system message
+            messages = [SystemMessage(content=system_prompt)]
+
+            # Add conversation history (preserving role context)
+            for msg in conversation_history:
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                if role == "user":
+                    messages.append(HumanMessage(content=content))
+                elif role == "assistant":
+                    messages.append(AIMessage(content=content))
+
+            # Add current user input
+            messages.append(HumanMessage(content=user_input))
+
+            logger.info(f"🤖 Invoking LLM with {len(messages)} messages (system + {len(conversation_history)} history + current)")
 
             # Invoke LLM
             response = await llm.ainvoke(messages)
@@ -565,7 +586,7 @@ class GuideAgent:
             }
 
         except Exception as e:
-            logger.error(f"Failed to invoke LLM for chat: {e}")
+            logger.error(f"Failed to invoke LLM for chat: {e}", exc_info=True)
             return {
                 "llm_response": "I apologize, but I'm having trouble processing your message right now. Please try again.",
                 "workflow_status": "llm_invocation_failed",
@@ -725,7 +746,7 @@ class GuideAgent:
             return "I apologize, but I'm having trouble processing your message right now. Please try again."
 
     def _build_system_prompt(self) -> str:
-        """Build system prompt from agent contract"""
+        """Build system prompt from agent contract with thread awareness"""
         traits_desc = "\n".join([
             f"- {trait.replace('_', ' ').title()}: {value}/100"
             for trait, value in self.contract.traits.model_dump().items()
@@ -742,7 +763,15 @@ INTERACTION STYLE: {self.contract.identity.interaction_style}
 PERSONALITY TRAITS:
 {traits_desc}
 
-Respond to the user in a way that embodies your character and mission.
+=== CRITICAL INSTRUCTIONS ===
+1. ALWAYS respond in the context of the FULL conversation thread
+2. Reference previous messages when relevant to show continuity
+3. Build upon what the user has shared earlier in the conversation
+4. Acknowledge the ongoing relationship and journey together
+5. Use the conversation history to provide personalized, contextual responses
+6. If relevant memory context is provided above, integrate it naturally
+
+Respond to the user in a way that embodies your character, mission, and the full context of your relationship.
 """
 
     async def run_complete_flow(
