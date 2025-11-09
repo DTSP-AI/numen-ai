@@ -454,6 +454,7 @@ class GuideAgent:
         try:
             from langchain_openai import ChatOpenAI
             from langchain.schema import SystemMessage, HumanMessage
+            from config import settings
 
             # Build system prompt from contract
             system_prompt = self._build_system_prompt()
@@ -465,11 +466,15 @@ class GuideAgent:
                 for mem in memory_context.retrieved_memories[:3]:
                     context_str += f"- {mem.get('content', '')}\n"
 
+            # Get OpenAI API key
+            api_key = settings.openai_api_key or settings.OPENAI_API_KEY
+
             # Initialize LLM
             llm = ChatOpenAI(
                 model=self.contract.configuration.llm_model,
                 temperature=self.contract.configuration.temperature,
-                max_tokens=self.contract.configuration.max_tokens
+                max_tokens=self.contract.configuration.max_tokens,
+                api_key=api_key
             )
 
             # Build messages

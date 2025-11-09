@@ -372,7 +372,7 @@ Guidelines:
 
             configuration=AgentConfiguration(
                 llm_provider="openai",
-                llm_model="gpt-4",
+                llm_model="gpt-5-nano",
                 max_tokens=1000,
                 temperature=0.8,
                 memory_enabled=True,

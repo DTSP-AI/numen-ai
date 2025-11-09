@@ -41,7 +41,7 @@ class ManifestationProtocolAgent:
 
     def __init__(self):
         self.llm = ChatOpenAI(
-            model="gpt-4",
+            model="gpt-5-nano",
             temperature=0.7,
             openai_api_key=settings.openai_api_key or settings.OPENAI_API_KEY,
             request_timeout=60.0,  # 60 second timeout

@@ -36,7 +36,7 @@ class AttributeCalculator:
 
     def __init__(self):
         self.llm = ChatOpenAI(
-            model="gpt-4o-mini",
+            model="gpt-5-nano",
             temperature=0.3,  # Lower temp for consistent recommendations
             api_key=settings.openai_api_key
         )

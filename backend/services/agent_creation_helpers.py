@@ -165,7 +165,7 @@ def build_agent_configuration() -> AgentConfiguration:
     """
     return AgentConfiguration(
         llm_provider="openai",
-        llm_model="gpt-4o-mini",
+        llm_model="gpt-5-nano",
         max_tokens=800,
         temperature=0.7,
         memory_enabled=True,

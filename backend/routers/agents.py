@@ -699,7 +699,7 @@ async def create_agent_from_intake(
             "traits": calculated_traits.model_dump(),  # Use AI-calculated traits
             "configuration": {
                 "llm_provider": "openai",
-                "llm_model": "gpt-4o-mini",
+                "llm_model": "gpt-5-nano",
                 "max_tokens": 800,
                 "temperature": 0.7,
                 "memory_enabled": True,

@@ -158,7 +158,7 @@ async def intake_assist(request: IntakeAssistRequest):
 
         # Use OpenAI to refine text
         response = openai_client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-5-nano",
             messages=[
                 {"role": "system", "content": "Polish and improve this user input for a manifestation intake form. Make it clear, positive, and actionable. Keep it concise."},
                 {"role": "user", "content": request.text}

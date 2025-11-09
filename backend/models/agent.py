@@ -165,7 +165,7 @@ class AgentConfiguration(BaseModel):
         description="LLM provider (openai, anthropic, xai, local)"
     )
     llm_model: str = Field(
-        default="gpt-4o-mini",
+        default="gpt-5-nano",
         description="Model name/identifier"
     )
     max_tokens: int = Field(
@@ -205,7 +205,7 @@ class AgentConfiguration(BaseModel):
         json_schema_extra = {
             "example": {
                 "llm_provider": "openai",
-                "llm_model": "gpt-4",
+                "llm_model": "gpt-5-nano",
                 "max_tokens": 800,
                 "temperature": 0.8,
                 "memory_enabled": True,
@@ -437,7 +437,7 @@ class AgentContract(BaseModel):
                     "assertiveness": 40
                 },
                 "configuration": {
-                    "llm_model": "gpt-4",
+                    "llm_model": "gpt-5-nano",
                     "temperature": 0.7,
                     "voice_enabled": True
                 },
